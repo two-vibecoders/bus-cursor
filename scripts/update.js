@@ -1,5 +1,5 @@
 /**
- * Обновление Bus Cursor из GitHub Release репозитория agent-cursor/bus-cursor.
+ * Обновление Bus Cursor из GitHub Release репозитория two-vibecoders/bus-cursor.
  * Проверка - один раз при старте UI, установка - по кнопке на странице.
  *
  * Метка версии - release.json в папке скилла: { version, repo, files }.
@@ -23,7 +23,7 @@ const RAW = process.env.BUS_UPDATE_RAW || 'https://raw.githubusercontent.com';
 const CHECK_TIMEOUT_MS = 5000;
 const FILE_TIMEOUT_MS = 20000;
 const NOTES_LENGTH = 600;
-// Скилл лежит в корне репозитория agent-cursor/bus-cursor (не в skills/bus/).
+// Скилл лежит в корне репозитория two-vibecoders/bus-cursor (не в skills/bus/).
 // Пустой prefix - все файлы тега; иначе - только пути с этим префиксом (из release.json.prefix).
 const DEFAULT_PREFIX = '';
 const SEMVER = /^\d+\.\d+\.\d+$/;

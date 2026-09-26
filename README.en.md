@@ -12,7 +12,7 @@
 <p align="center">
   <a href="README.md">Русский</a>
   ·
-  <a href="https://github.com/agent-cursor/bus-cursor/releases">Releases</a>
+  <a href="https://github.com/two-vibecoders/bus-cursor/releases">Releases</a>
   ·
   <a href="#installation">Install</a>
   ·
@@ -30,9 +30,9 @@ It is an adaptation of [claude-bus](https://github.com/jtapes/claude-bus) (Claud
 | | |
 |---|---|
 | Original | [jtapes/claude-bus](https://github.com/jtapes/claude-bus) · [JTapes](https://github.com/jtapes) |
-| Cursor port | [SafonovAG](https://github.com/SafonovAG) · [agent-cursor/bus-cursor](https://github.com/agent-cursor/bus-cursor) |
+| Cursor port | [SafonovAG](https://github.com/SafonovAG) · [two-vibecoders/bus-cursor](https://github.com/two-vibecoders/bus-cursor) |
 
-Current version: see [`release.json`](release.json) and [GitHub Releases](https://github.com/agent-cursor/bus-cursor/releases).
+Current version: see [`release.json`](release.json) and [GitHub Releases](https://github.com/two-vibecoders/bus-cursor/releases).
 
 ## Features
 
@@ -66,14 +66,14 @@ macOS / Linux — see [Cursor CLI docs](https://cursor.com/docs/cli/overview), t
 ### Windows
 
 ```powershell
-git clone https://github.com/agent-cursor/bus-cursor.git "$env:USERPROFILE\.cursor\skills\bus-cursor"
+git clone https://github.com/two-vibecoders/bus-cursor.git "$env:USERPROFILE\.cursor\skills\bus-cursor"
 & "$env:USERPROFILE\.cursor\skills\bus-cursor\install.ps1"
 ```
 
 ### macOS / Linux
 
 ```bash
-git clone https://github.com/agent-cursor/bus-cursor.git ~/.cursor/skills/bus-cursor
+git clone https://github.com/two-vibecoders/bus-cursor.git ~/.cursor/skills/bus-cursor
 chmod +x ~/.cursor/skills/bus-cursor/install.sh
 ~/.cursor/skills/bus-cursor/install.sh
 ```
@@ -84,7 +84,7 @@ The install script runs `bus.js setup` and installs:
 - a **Bus Cursor** shortcut (Windows: Desktop + Start Menu; macOS: `~/Applications`; Linux: app menu + desktop)
 - project rule `.cursor/rules/bus-cursor.mdc` when a folder is attached
 
-Without git: download a release archive from [Releases](https://github.com/agent-cursor/bus-cursor/releases), extract to `~/.cursor/skills/bus-cursor`, then run `install.ps1` / `install.sh`.
+Without git: download a release archive from [Releases](https://github.com/two-vibecoders/bus-cursor/releases), extract to `~/.cursor/skills/bus-cursor`, then run `install.ps1` / `install.sh`.
 
 ## Launch
 
@@ -161,7 +161,7 @@ The skill responds to prompts like “open Bus Cursor”, “what’s in the inb
 ## Authors
 
 - [JTapes](https://github.com/jtapes) — [claude-bus](https://github.com/jtapes/claude-bus)  
-- [SafonovAG](https://github.com/SafonovAG) — Cursor port ([agent-cursor](https://github.com/agent-cursor))  
+- [SafonovAG](https://github.com/SafonovAG) — Cursor port ([two-vibecoders](https://github.com/two-vibecoders))  
 
 ---
 
@@ -169,6 +169,6 @@ The skill responds to prompts like “open Bus Cursor”, “what’s in the inb
   <sub>
     <a href="README.md">Русский README</a>
     ·
-    <a href="https://github.com/agent-cursor/bus-cursor/releases">Releases</a>
+    <a href="https://github.com/two-vibecoders/bus-cursor/releases">Releases</a>
   </sub>
 </p>

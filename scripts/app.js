@@ -236,7 +236,7 @@ function macPlist() {
 <dict>
   <key>CFBundleName</key><string>${APP_NAME}</string>
   <key>CFBundleDisplayName</key><string>${APP_NAME}</string>
-  <key>CFBundleIdentifier</key><string>io.github.agent-cursor.bus-cursor</string>
+  <key>CFBundleIdentifier</key><string>io.github.two-vibecoders.bus-cursor</string>
   <key>CFBundleExecutable</key><string>bus-cursor</string>
   <key>CFBundleIconFile</key><string>bus.icns</string>
   <key>CFBundlePackageType</key><string>APPL</string>

@@ -2054,6 +2054,7 @@ async function handle(req, res, port) {
       updateTimers();
       return reply(res, 200, { ok: true });
     }
+    if (url.pathname === '/api/open') return reply(res, 200, openExternal(body.url));
     if (url.pathname === '/api/settings') return reply(res, 200, saveSettings(body));
     if (url.pathname === '/api/delete') return reply(res, 200, deleteMessages(body));
     if (url.pathname === '/api/dialog/new') return reply(res, 200, newDialog(body));
@@ -2123,10 +2124,25 @@ function openBrowser(url) {
   const { spawn } = require('child_process');
   const [cmd, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
   try {
-    spawn(cmd, args, { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
+    spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).on('error', () => {}).unref();
   } catch {
     // нет браузера - адрес напечатан, откроют руками
   }
+}
+
+/** Открыть http(s) в браузере по умолчанию ОС (не в окне --app). → { ok }. */
+function openExternal(raw) {
+  const text = String(raw || '').trim();
+  let url;
+  try {
+    url = new URL(text);
+  } catch {
+    throw new bus.BusError(tr('Некорректная ссылка.'));
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new bus.BusError(tr('Открываю только http и https.'));
+  if (url.username || url.password) throw new bus.BusError(tr('Некорректная ссылка.'));
+  openBrowser(url.href);
+  return { ok: true };
 }
 
 /** Окно --app, если есть Chrome или Edge (размер и место - как у прошлого окна); иначе вкладка. */
