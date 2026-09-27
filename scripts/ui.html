@@ -4755,6 +4755,7 @@ function toggleFilters() {
 
 /** feedNext - следом придёт лента (load): список агентов с весом переписки рисуем один раз, уже по ней. */
 function applyAgents(snapshot, feedNext = false) {
+  const prevRoot = composeDraftRoot;
   state.agents = snapshot.agents;
   state.here = snapshot.here;
   state.hues = L.assignHues(state.agents);
@@ -4765,6 +4766,9 @@ function applyAgents(snapshot, feedNext = false) {
   if (!feedNext) renderAgents();
   renderRecipients();
   renderMine();
+  // Сменился каталог - свой черновик; первый apply после загрузки - вернуть недописанное
+  if (composeDraftScope() !== prevRoot) composeDraftReady = false;
+  restoreComposeDraft();
 }
 
 // ---------- лимиты аккаунта и окно контекста ----------
@@ -5782,11 +5786,80 @@ async function post(path, body) {
   return answer(await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bus-Token': TOKEN, ...langHeader() }, body: JSON.stringify(body) }));
 }
 
+// ---------- черновик поля чата (localStorage до отправки: сбой / закрытие окна) ----------
+
+let composeDraftReady = false; // уже восстановили для текущего каталога
+let composeDraftRoot = '';
+let composeDraftTimer = null;
+
+const composeDraftScope = () => (state.here && (state.here.root || state.here.cwd)) || '';
+const composeDraftKey = (scope = composeDraftScope()) => `bus-compose-draft:${scope || '_'}`;
+
+function saveComposeDraft() {
+  try {
+    const text = $('text').value;
+    const key = composeDraftKey();
+    if (!String(text).trim()) {
+      localStorage.removeItem(key);
+      return;
+    }
+    localStorage.setItem(key, JSON.stringify({
+      text,
+      to: $('to').value || '',
+      type: $('type').value || '',
+      at: Date.now(),
+    }));
+  } catch {
+    // quota / private mode - черновик просто не сохранится
+  }
+}
+
+function scheduleComposeDraft() {
+  clearTimeout(composeDraftTimer);
+  composeDraftTimer = setTimeout(saveComposeDraft, 200);
+}
+
+function clearComposeDraft() {
+  clearTimeout(composeDraftTimer);
+  try { localStorage.removeItem(composeDraftKey()); } catch {}
+}
+
+/** Вернуть недосланный текст после reload / сбоя. to/type - если опции ещё есть. */
+function restoreComposeDraft() {
+  const scope = composeDraftScope();
+  if (composeDraftReady && scope === composeDraftRoot) return;
+  composeDraftRoot = scope;
+  composeDraftReady = true;
+  let d;
+  try {
+    const raw = localStorage.getItem(composeDraftKey(scope));
+    if (!raw) return;
+    d = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  if (!d || typeof d.text !== 'string' || !d.text) return;
+  // Уже что-то набрали в этой сессии до прихода state - не затираем
+  if ($('text').value.trim() && $('text').value !== d.text) return;
+  $('text').value = d.text;
+  if (d.type && [...$('type').options].some((o) => o.value === d.type)) $('type').value = d.type;
+  if (d.to && [...$('to').options].some((o) => o.value === d.to)) {
+    $('to').value = d.to;
+    renderFrom();
+  }
+  fitText();
+}
+
+$('text').addEventListener('input', scheduleComposeDraft);
+// Перед выгрузкой страницы допишем черновик без debounce (закрытие окна / crash recovery)
+window.addEventListener('pagehide', saveComposeDraft);
+window.addEventListener('beforeunload', saveComposeDraft);
+
 $('composer').addEventListener('submit', async (e) => {
   e.preventDefault();
   if ($('sendBtn').disabled) return; // requestSubmit по Enter выключенную кнопку не видит: второй Enter, пока идёт отправка, слал дубль
   const body = { to: $('to').value, type: $('type').value, text: $('text').value, files: picked.map((f) => f.id), btw: $('btw').checked, evolve: !$('evolveWrap').hidden && $('evolve').checked };
-  // Пишешь агенту, чья вкладка открыта, - сообщение уходит в неё; другому - в его текущий диалог
+  // Пишешь агенту, чья вкладка открыта - сообщение уходит в неё; другому - в его текущий диалог
   const target = L.dialogTarget(filters, state.agents);
   if (target && filters.dialog && target.agent === body.to) body.dialog = filters.dialog.d;
   const refs = marked.size && !refsOff ? [...marked] : [];
@@ -5807,6 +5880,7 @@ $('composer').addEventListener('submit', async (e) => {
     $('text').value = '';
     fitText();
     $('btw').checked = false;
+    clearComposeDraft();
     picked = [];
     renderPicked();
     if (refs.length) {
@@ -5815,6 +5889,7 @@ $('composer').addEventListener('submit', async (e) => {
     }
   } catch (err) {
     say(tr('Не отправлено: {why}', { why: err.message }), true);
+    saveComposeDraft(); // сбой отправки - текст остаётся и в поле, и в localStorage
   } finally {
     $('sendBtn').disabled = !$('to').options.length; // писать некому - кнопка так и остаётся выключенной
   }
