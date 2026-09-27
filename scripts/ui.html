@@ -1072,7 +1072,7 @@
   /* Идёт диктовка: поле, куда ложится текст. Рамка и ровное свечение, без пульса - запись бывает долгой */
   textarea.listening, input.listening { border-color: var(--copper) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--copper) 35%, transparent), 0 0 24px -6px var(--copper-glow) !important; }
 
-  /* Чипы над полем: вложения / цитаты / btw - полоса прячется, если всё hidden */
+  /* Чипы над полем: вложения / цитаты - полоса прячется, если всё hidden */
   .compose-extras {
     display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
     min-width: 0;
@@ -1089,21 +1089,23 @@
   .compose-opt input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
   .compose-opt input[type="checkbox"]::before { width: 12px; height: 12px; border-radius: 3px; }
   .compose-opt input[type="checkbox"]::after { width: 6px; height: 6px; }
-  /* Самоправка роли - в строке compose-meta; иконка чуть отстаёт от подписи */
-  .compose-evolve {
-    display: inline-flex; align-items: center; gap: 4px;
+  /* Опции под полем (вброс / правка роли): после «от …», иконка info рядом с подписью */
+  .compose-opt-row {
+    display: inline-flex; align-items: center; gap: 2px;
     flex: none; min-width: 0;
   }
-  .compose-evolve[hidden] { display: none !important; }
-  .compose-evolve .compose-opt { padding-right: 8px; }
-  .compose-evolve-info {
+  .compose-opt-row[hidden] { display: none !important; }
+  .compose-opt-row.dim { opacity: .55; }
+  .compose-opt-row.dim .compose-opt { cursor: not-allowed; }
+  .compose-opt-row .compose-opt { padding-right: 2px; }
+  .compose-opt-info {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 18px; height: 18px; padding: 0; margin: 0;
+    width: 16px; height: 16px; padding: 0; margin: 0 0 0 -2px;
     border: 0; border-radius: 50%; background: transparent;
     color: var(--ink-soft); cursor: help; flex: none;
   }
-  .compose-evolve-info:hover { color: var(--copper); background: var(--tap); }
-  .compose-evolve-info .icon { width: 13px; height: 13px; opacity: .9; }
+  .compose-opt-info:hover { color: var(--copper); background: var(--tap); }
+  .compose-opt-info .icon { width: 13px; height: 13px; opacity: .9; }
 
   /* Основная строка ввода - как пузырь Telegram */
   .compose-shell {
@@ -3014,6 +3016,7 @@
   <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
   <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><path d="M12 18v4"/><path d="M8 22h8"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 21h20L12 3z"/><path d="M12 10v5"/><path d="M12 18h.01"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
   <symbol id="i-github" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 2C6.48 2 2 6.58 2 12.26c0 4.52 2.87 8.35 6.84 9.71.5.1.68-.22.68-.48 0-.24-.01-.87-.01-1.7-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.55-1.14-4.55-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.73 0 0 .84-.27 2.75 1.05A9.3 9.3 0 0 1 12 6.84c.85.004 1.71.12 2.51.35 1.91-1.32 2.75-1.05 2.75-1.05.55 1.42.2 2.47.1 2.73.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.8-4.57 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.59.69.49A10.03 10.03 0 0 0 22 12.26C22 6.58 17.52 2 12 2z"/></symbol>
   <symbol id="i-telegram" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M21.8 4.3 2.9 11.5c-1.3.5-1.3 1.2-.2 1.5l4.8 1.5 1.9 5.7c.2.7.4.9 1 .9.6 0 .8-.3 1.1-.6l2.8-2.7 5.6 4.1c1 .5 1.7.3 2-.9L23.2 5.8c.3-1.3-.4-1.9-1.4-1.5z"/></symbol>
   <symbol id="i-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
@@ -3094,7 +3097,6 @@
         <input type="file" id="pick" multiple hidden>
         <span class="filechip refs" id="refsChip" hidden title="Выделенные в ленте сообщения уйдут агенту цитатами вместе с этим сообщением"></span>
         <span id="picked"></span>
-        <label class="compose-opt" id="btwWrap" hidden title="Агент сейчас работает. Обычное сообщение дождётся конца, btw - дойдёт посреди хода"><input type="checkbox" id="btw"><span>btw</span></label>
       </div>
 
       <!-- Одна оболочка: инструменты · поле · отправка -->
@@ -3119,11 +3121,15 @@
       <div class="compose-meta">
         <label class="compose-pill" title="Кому"><select id="to" required aria-label="Кому"></select></label>
         <label class="compose-pill" title="Тип"><select id="type" aria-label="Тип"></select></label>
-        <div class="compose-evolve" id="evolveWrap" hidden>
-          <label class="compose-opt"><input type="checkbox" id="evolve"><span>Правка роли</span></label>
-          <button type="button" class="compose-evolve-info" data-tip="Когда агент сдаст задачу (DONE), он в той же сессии разберёт, как работал, и предложит правку своей роли: нужное допишет, лишнее уберёт. Черновик с diff откроется в редакторе роли - на диск пойдёт только по «Сохранить»" aria-label="Что делает «Правка роли»"><svg class="icon" aria-hidden="true"><use href="#i-info"/></svg></button>
-        </div>
         <small id="fromHint"></small>
+        <div class="compose-opt-row" id="btwWrap" hidden>
+          <label class="compose-opt"><input type="checkbox" id="btw"><span>Перебить агента</span></label>
+          <button type="button" class="compose-opt-info" data-tip="Агент сейчас работает. Обычное сообщение дождётся конца его работы; «Перебить агента» дойдёт посреди хода, между вызовами инструментов" aria-label="Что делает «Перебить агента»"><svg class="icon" aria-hidden="true"><use href="#i-info"/></svg></button>
+        </div>
+        <div class="compose-opt-row" id="evolveWrap" hidden>
+          <label class="compose-opt"><input type="checkbox" id="evolve"><span>Правка роли</span></label>
+          <button type="button" class="compose-opt-info" data-tip="Когда агент сдаст задачу (DONE), он в той же сессии разберёт, как работал, и предложит правку своей роли: нужное допишет, лишнее уберёт. Черновик с diff откроется в редакторе роли - на диск пойдёт только по «Сохранить»" aria-label="Что делает «Правка роли»"><svg class="icon" aria-hidden="true"><use href="#i-info"/></svg></button>
+        </div>
       </div>
       <span id="attachHint" hidden></span>
     </form>
@@ -4166,9 +4172,23 @@ const hereBoss = () => state.agents.find((a) => a.orchestrator && a.here);
 function renderFrom() {
   const to = state.agents.find((a) => a.key === $('to').value);
   $('fromHint').textContent = !to || !to.from ? '' : to.attach ? tr('от {from} · подключит каталог', { from: to.from }) : tr('от {from}', { from: to.from });
-  // btw есть смысл предлагать, только пока получатель работает; закончил - галочка снимается, сообщение уйдёт обычным
-  $('btwWrap').hidden = !L.canBtw(to);
-  if ($('btwWrap').hidden) $('btw').checked = false;
+  // Вброс - у субагента рядом с «Правкой роли»; активен, только пока он работает в фоне
+  const showBtw = L.canEvolve(to);
+  const btwReady = L.canBtw(to);
+  $('btwWrap').hidden = !showBtw;
+  $('btwWrap').classList.toggle('dim', showBtw && !btwReady);
+  $('btw').disabled = !btwReady;
+  if (!btwReady) $('btw').checked = false;
+  const btwTip = !showBtw ? ''
+    : !btwReady ? tr('Галочка станет активной, когда агент работает в фоне. Обычное сообщение дождётся конца его работы; «Перебить агента» - не ждать.')
+    : to.runtime === 'cursor'
+      ? tr('Агент на Cursor сейчас работает. «Перебить агента» кладёт сообщение в inbox - он заберёт его после текущего хода (вброса посреди хода у Cursor CLI нет).')
+      : tr('Агент сейчас работает. Обычное сообщение дождётся конца его работы; «Перебить агента» дойдёт посреди хода, между вызовами инструментов');
+  const btwInfo = $('btwWrap').querySelector('.compose-opt-info');
+  if (btwInfo && btwTip) {
+    btwInfo.setAttribute('data-tip', btwTip);
+    btwInfo.setAttribute('aria-label', tr('Что делает «Перебить агента»'));
+  }
   // самоправка не снимается: скрыта у проекта - просто не уходит, вернулся к субагенту - снова в деле
   $('evolveWrap').hidden = !L.canEvolve(to);
 }
@@ -4326,7 +4346,7 @@ function messageNode(m, { fresh, unread, covered, cont, me }) {
       whoButton(m.from, m.fromKey, m.fromKind), pairButton(m), whoButton(m.to, m.toKey, m.toKind),
       el('span', { className: `type ${m.type}`, title: typeNote(m.type) }, typeLabel(m.type)),
       m.from === 'schedule' ? el('span', { className: 'sched-tag', title: tr('Отчёт запуска по расписанию') }, tr('по расписанию')) : '',
-      m.btw ? el('span', { className: 'btw-tag', title: tr('Вброшено агенту посреди работы, в inbox не лежало') }, 'btw') : '',
+      m.btw ? el('span', { className: 'btw-tag', title: tr('Вброшено агенту посреди работы, в inbox не лежало') }, tr('вброс')) : '',
       m.evolve ? el('span', { className: 'btw-tag', title: tr('После DONE агент разберёт свою работу и предложит правку роли') }, tr('самоправка')) : '',
       unread ? el('span', { className: 'new' }, tr('новое')) : '',
       usageNode(m),
