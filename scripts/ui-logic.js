@@ -93,6 +93,7 @@
     // Открыта вкладка диалога: переписка пары - только её, переписку агента с другими видно как раньше
     if (filters.dialog && pairOf(m) === filters.dialog.pair && (m.d || '') !== filters.dialog.d) return false;
     if (filters.types.size && !filters.types.has(m.type)) return false;
+    if (filters.day && m.t.slice(0, 10) !== filters.day) return false;
     // Без выбора агента лента - только каталог UI; выбранного агента или пару видно из любого каталога:
     // галочка «только эта директория» давала пустую ленту на клик по агенту из «Другие проекты»
     if (!filters.agents.size && hereRoot && m.roots.length && !m.roots.includes(hereRoot)) return false;

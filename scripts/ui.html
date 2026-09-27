@@ -794,10 +794,39 @@
   .feed { list-style: none; margin: 0; padding: 8px var(--gutter) 28px var(--feed-left); position: relative; min-height: 100%; container-type: inline-size; }
   /* Рейка - светящаяся нить, растворяется на концах: лента - кусок шины, а не вся шина */
   .feed::before { content: ""; position: absolute; left: var(--rail-x); top: 0; bottom: 0; width: var(--rail-w); background: linear-gradient(to bottom, var(--tap), color-mix(in srgb, var(--copper) 45%, var(--tap)) 50%, var(--tap)); box-shadow: 0 0 10px var(--copper-glow); -webkit-mask-image: linear-gradient(to bottom, transparent, #000 32px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to bottom, transparent, #000 32px, #000 calc(100% - 40px), transparent); }
-  /* День - бирка на рейке: ромб-засечка и короткая перемычка к ней */
-  .day { position: relative; width: fit-content; margin: 16px 0 12px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--glass-2); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 1px 0 var(--edge) inset; font: 12px/1.2 var(--label); text-transform: uppercase; letter-spacing: .1em; color: var(--ink-soft); }
-  .day::before { content: ""; position: absolute; left: calc(var(--cx) - 1px); top: 50%; margin-top: -1px; width: calc(0px - var(--cx)); height: 2px; background: var(--tap); }
-  .day::after { content: ""; position: absolute; left: calc(var(--cx) - 5px); top: 50%; margin-top: -4px; width: 8px; height: 8px; transform: rotate(45deg); border-radius: 1.5px; background: var(--copper); box-shadow: 0 0 0 2px var(--bg), 0 0 10px var(--copper-glow); }
+  /* День - по центру ленты; клик открывает календарь дат с перепиской */
+  .day {
+    position: relative; display: block; width: fit-content; margin: 16px 0 12px; padding: 4px 12px;
+    left: 50%; transform: translateX(calc(-50% + (var(--feed-left) - var(--gutter)) / 2));
+    border: 1px solid var(--line); border-radius: 999px; background: var(--glass-2);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 1px 0 var(--edge) inset;
+    font: 12px/1.2 var(--label); text-transform: uppercase; letter-spacing: .1em; color: var(--ink-soft);
+    cursor: pointer; user-select: none; transition: border-color .15s, color .15s, background-color .15s;
+  }
+  .day:hover, .day:focus-visible { border-color: var(--line-strong); color: var(--ink); outline: none; }
+  .day.on { border-color: color-mix(in srgb, var(--copper) 55%, var(--line)); color: var(--copper); background: var(--copper-soft); }
+  .day-cal {
+    position: fixed; z-index: 30; width: 280px; padding: 10px;
+    background: var(--sheet); border: 1px solid var(--line-strong); border-radius: var(--r);
+    box-shadow: var(--shadow-pop); -webkit-backdrop-filter: blur(14px) saturate(150%); backdrop-filter: blur(14px) saturate(150%);
+  }
+  .day-cal[hidden] { display: none !important; }
+  .day-cal-head { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
+  .day-cal-head b { flex: 1; text-align: center; font: 600 13px var(--body); color: var(--ink); text-transform: none; letter-spacing: 0; }
+  .day-cal-head .ghost { min-height: var(--h-sm); width: var(--h-sm); padding: 0; }
+  .day-cal-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px; }
+  .day-cal-week span { text-align: center; font: 11px var(--label); color: var(--ink-soft); letter-spacing: .04em; text-transform: uppercase; padding: 2px 0; }
+  .day-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .day-cal-grid button {
+    min-height: 32px; padding: 0; border: 0; border-radius: var(--r-sm); background: transparent;
+    color: var(--ink-soft); font: 13px/1 var(--mono); cursor: default;
+  }
+  .day-cal-grid button.has { color: var(--ink); background: var(--glass-2); cursor: pointer; font-weight: 600; }
+  .day-cal-grid button.has:hover { background: var(--glass-3); }
+  .day-cal-grid button.on { background: var(--copper-soft); color: var(--copper); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--copper) 45%, transparent); }
+  .day-cal-grid button:disabled { opacity: .35; }
+  .day-cal-foot { display: flex; justify-content: center; margin-top: 8px; }
+  .day-cal-foot .ghost { min-height: var(--h-sm); padding: 0 12px; font-size: 12px; }
   /* Карточка - стекло без размытия (см. шапку файла): полупрозрачная заливка, блик сверху, тень.
      width: fit-content - пузырь по тексту, иначе блок тянется на max-width и «свои справа» не читаются как чат */
   .msg { --hue: 0; --dot: hsl(var(--hue) var(--dot-s) var(--dot-l)); --px: calc(var(--cx) - 1px); /* ось рейки от края padding-box: рамка съедает 1px */ position: relative; margin: 0 0 10px; padding: 10px 14px 12px; background: var(--glass-1); border: 1px solid var(--line); border-radius: var(--r-lg); width: fit-content; max-width: min(860px, 82cqw); box-shadow: var(--shadow); transition: background-color .25s, border-color .25s, box-shadow .25s; }
@@ -905,9 +934,12 @@
   .live li.tool { font-family: var(--mono); color: var(--ink-soft); }
   .live time { margin-right: 6px; font-family: var(--mono); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
   .agent .live-last { display: block; font: 12px/1.4 var(--mono); color: var(--done); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* Полоса над композером: агент думает - детали хода остаются в карточке сообщения */
+  /* Полоса над композером: агент думает - компактно слева, не на всю ширину */
+  .composer-dock { display: flex; flex-direction: column; align-items: stretch; }
   .live-bar {
-    display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding: 8px 12px;
+    display: inline-flex; align-items: center; gap: 10px; align-self: flex-start;
+    width: fit-content; max-width: calc(100% - 2 * var(--gutter));
+    margin: 0 var(--gutter) 8px; padding: 6px 12px;
     border-radius: var(--r); background: color-mix(in srgb, var(--copper) 8%, var(--glass-1));
     border: 1px solid color-mix(in srgb, var(--copper) 28%, var(--line));
     font-size: 13px; line-height: 1.3; color: var(--ink);
@@ -1347,6 +1379,12 @@
 
   /* Отчёт о весе переписки: кнопка в шапке - сумма несжатого, панель - диалоги по убыванию веса */
   #weightBtn.heavy { border-color: var(--copper); color: var(--copper); box-shadow: 0 0 16px -6px var(--copper-glow); }
+  .weight-actions {
+    display: flex; align-items: center; justify-content: flex-start; gap: 10px;
+    padding: 10px var(--gutter); border-bottom: 1px solid var(--line); flex: none;
+  }
+  .weight-actions[hidden] { display: none !important; }
+  .weight-actions .squeeze { min-height: var(--h); padding: 0 14px; }
   .weight-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; width: 100%; padding: 10px var(--gutter); border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; color: inherit; text-align: left; height: auto; transition: background-color .2s; animation: fade-up .35s var(--ease) backwards; }
   .sched-group:first-child > .weight-row:first-child { border-top: 0; } /* сверху уже есть линия итога */
   .weight-row:hover { background: var(--glass-2); }
@@ -1354,7 +1392,9 @@
   .weight-row .names i { font-style: normal; color: var(--ink-soft); margin: 0 6px; }
   .weight-row .tokens { font: 600 14px var(--mono); white-space: nowrap; }
   .weight-row.heavy .tokens { color: var(--copper); }
+  .weight-row.ready .names { color: var(--ink); }
   .weight-row .detail { grid-column: 1 / -1; font-size: 12px; color: var(--ink-soft); }
+  .sched-group > .label + .weight-row { border-top: 0; }
   /* Панель каталогов: текущий со звездой, подключение к шине, поле пути; ниже - списки или обзор папок */
   .dirs-current { display: flex; align-items: center; gap: 12px; padding: 12px var(--gutter); border-bottom: 1px solid var(--line); flex: none; }
   .dirs-current > div { min-width: 0; flex: 1; }
@@ -2472,7 +2512,7 @@
     box-shadow: none !important;
   }
   .day {
-    margin: 12px auto !important;
+    margin: 12px 0 !important;
     padding: 3px 10px !important;
     border: 0 !important;
     border-radius: var(--r-sm) !important;
@@ -2482,10 +2522,11 @@
     box-shadow: none !important;
     font-size: 11px !important;
     letter-spacing: .04em !important;
-    left: 50%;
-    transform: translateX(calc(-50% + (var(--feed-left) - var(--gutter)) / 2));
   }
-  .day::before, .day::after { display: none !important; }
+  .day.on {
+    background: var(--copper-soft) !important;
+    color: var(--copper) !important;
+  }
 
   .msg {
     margin: 0 0 6px !important;
@@ -3217,8 +3258,16 @@
     <button class="ghost iconbtn" id="weightClose" type="button" aria-label="Закрыть отчёт о весе переписки"><svg class="icon"><use href="#i-x"/></svg></button>
   </div>
   <p class="sched-daemon" id="weightTotal"></p>
+  <div class="weight-actions" id="weightActions" hidden>
+    <button class="squeeze" id="squeezeAllBtn" type="button" title="Сжать все диалоги этой директории в сводки">
+      <svg class="icon"><use href="#i-squeeze"/></svg>
+      <span id="squeezeAllLabel">Сжать все</span>
+    </button>
+  </div>
   <div class="sched-list" id="weightList"></div>
 </section>
+
+<div class="day-cal" id="dayCal" hidden role="dialog" aria-label="Календарь переписки"></div>
 
 <div class="sched-backdrop" id="dirsBackdrop" hidden></div>
 <section class="schedule" id="dirsPanel" hidden role="dialog" aria-modal="true" aria-labelledby="dirsTitle">
@@ -3636,7 +3685,7 @@ function icon(name) {
 const state = { agents: [], here: {}, types: [], maxFiles: 10, maxFileBytes: 30 * 1024 * 1024, messages: new Map(), summaries: new Map(), dialogs: new Map(), closed: {}, hues: new Map(), schedule: null, access: { servers: [], weights: null }, cursorModels: [], live: {}, liveOpen: new Set() };
 let picked = []; // загруженные, но ещё не отправленные вложения: { id, name, size }
 let showCovered = false; // в режиме пары: раскрыты ли сообщения, которые уже ушли в сводку
-const filters = { agents: new Set(), types: new Set(), q: '', dialog: null }; // dialog - открытая вкладка { pair, d }, ставит renderDialogs
+const filters = { agents: new Set(), types: new Set(), q: '', dialog: null, day: null }; // dialog - открытая вкладка { pair, d }; day - YYYY-MM-DD
 const chosenDialog = new Map(); // пара → d вкладки, которую открыл пользователь; нет - открыт текущий диалог (куда агент ответит)
 const TYPE_NOTE = { TASK: N('просьба сделать'), QUESTION: N('нужен ответ'), DONE: N('прими к сведению') };
 const TYPE_LABEL = { TASK: N('Задача'), QUESTION: N('Вопрос'), DONE: N('Информация') };
@@ -3704,29 +3753,51 @@ function agentButton(agent, fresh, me) {
 // ---------- вес переписки ----------
 
 let weightOpen = false;
+let squeezeAllBusy = false;
 
 /** Кнопка в шапке - сумма несжатого по каталогу UI; открытая панель перерисовывается вместе с ней. */
 function renderWeight() {
   const report = L.weightReport(messageList(), state.summaries, state.here.root);
   $('weightSum').textContent = tr('≈{n} ток.', { n: L.short(report.total.tokens + report.total.summary) });
   $('weightBtn').classList.toggle('heavy', report.rows.some((row) => row.here && row.heavy));
+  const ready = report.rows.filter((r) => r.here && r.fresh >= 2);
+  const allBtn = $('squeezeAllBtn');
+  const actions = $('weightActions');
+  actions.hidden = !ready.length && !squeezeAllBusy;
+  allBtn.disabled = squeezeAllBusy || !ready.length;
+  allBtn.setAttribute('data-tip', ready.length
+    ? tr('Сжать все диалоги этой директории в сводки')
+    : tr('Нечего сжимать: в этой директории нет диалогов с двумя и более несжатыми сообщениями'));
+  if (!squeezeAllBusy) $('squeezeAllLabel').textContent = tr('Сжать все');
   if (!weightOpen) return;
   const { total } = report;
   $('weightTotal').textContent = total.dialogs
-    ? tr('Эта директория: диалогов {dialogs} · несжатых сообщений {fresh}, ≈{tokens} токенов', { dialogs: total.dialogs, fresh: total.fresh, tokens: L.short(total.tokens) }) + (total.summary ? tr(' · сводки ≈{n}', { n: L.short(total.summary) }) : '') + tr('. Оценка: символы / 3. Клик по диалогу откроет его - там «Сжать диалог».')
+    ? tr('Эта директория: диалогов {dialogs} · несжатых сообщений {fresh}, ≈{tokens} токенов', { dialogs: total.dialogs, fresh: total.fresh, tokens: L.short(total.tokens) }) + (total.summary ? tr(' · сводки ≈{n}', { n: L.short(total.summary) }) : '') + (ready.length ? tr('. Ниже - диалоги, которые можно сжать.') : tr('. Оценка: символы / 3. Клик по диалогу откроет его - там «Сжать диалог».'))
     : tr('В этой директории переписки нет.');
   // У пары несколько диалогов - строки различает начало первого сообщения
   const perPair = new Map();
   for (const r of report.rows) perPair.set(r.pair, (perPair.get(r.pair) || 0) + 1);
-  const row = (r) => el('button', { type: 'button', className: `weight-row${r.heavy ? ' heavy' : ''}`, title: tr('Открыть диалог'), onclick: () => { closeWeight(); selectAgents(r.keys, r); } },
+  const row = (r) => el('button', { type: 'button', className: `weight-row${r.heavy ? ' heavy' : ''}${r.fresh >= 2 ? ' ready' : ''}`, title: tr('Открыть диалог'), onclick: () => { closeWeight(); selectAgents(r.keys, r); } },
     el('span', { className: 'names' }, r.names[0], el('i', {}, '↔'), r.names[1]),
     el('span', { className: 'tokens' }, tr('≈{n} ток.', { n: L.short(r.tokens) })),
     el('span', { className: 'detail' }, (perPair.get(r.pair) > 1 ? `«${r.title}» · ` : '') + tr('{total} сообщ. · несжатых {fresh}', { total: r.total, fresh: r.fresh }) + (r.summary ? tr(' · сводка ≈{n} ток.', { n: L.short(r.summary) }) : '') + (r.heavy ? tr(' · пора сжать') : '')));
-  const here = report.rows.filter((r) => r.here);
+  const hereRest = report.rows.filter((r) => r.here && r.fresh < 2);
   const others = report.rows.filter((r) => !r.here);
-  $('weightList').replaceChildren(
-    ...(here.length ? [el('div', { className: 'sched-group' }, ...here.map(row))] : []),
-    ...(others.length ? [el('div', { className: 'sched-group' }, el('span', { className: 'label' }, tr('Другие проекты · {n}', { n: others.length })), ...others.map(row))] : []));
+  const parts = [];
+  if (ready.length) {
+    parts.push(el('div', { className: 'sched-group' },
+      el('span', { className: 'label' }, tr('Можно сжать · {n}', { n: ready.length })),
+      ...ready.map(row)));
+  }
+  if (hereRest.length) {
+    parts.push(el('div', { className: 'sched-group' },
+      el('span', { className: 'label' }, tr('Уже сжато или мало сообщений · {n}', { n: hereRest.length })),
+      ...hereRest.map(row)));
+  }
+  if (others.length) {
+    parts.push(el('div', { className: 'sched-group' }, el('span', { className: 'label' }, tr('Другие проекты · {n}', { n: others.length })), ...others.map(row)));
+  }
+  $('weightList').replaceChildren(...parts);
 }
 
 function openWeight() {
@@ -3749,6 +3820,55 @@ function closeWeight() {
 $('weightBtn').addEventListener('click', () => (weightOpen ? closeWeight() : openWeight()));
 $('weightClose').addEventListener('click', closeWeight);
 $('weightBackdrop').addEventListener('click', closeWeight);
+
+$('squeezeAllBtn').addEventListener('click', async () => {
+  const report = L.weightReport(messageList(), state.summaries, state.here.root);
+  const targets = report.rows.filter((r) => r.here && r.fresh >= 2);
+  if (!targets.length) {
+    say(tr('Нечего сжимать: в этой директории нет диалогов с двумя и более несжатыми сообщениями'), true);
+    return;
+  }
+  const tokens = targets.reduce((n, r) => n + r.tokens, 0);
+  const ask = tr('Сжать все диалоги этой директории в сводки? Диалогов: {n}, несжатых сообщений ≈{fresh}, ≈{weight} токенов; каждое сжатие стоит ≈3-4к токенов Cursor. Исходные останутся в журнале.', {
+    n: targets.length,
+    fresh: targets.reduce((n, r) => n + r.fresh, 0),
+    weight: L.short(tokens),
+  });
+  if (!await askConfirm(ask, { title: tr('Сжать все'), ok: tr('Сжать') })) return;
+  const button = $('squeezeAllBtn');
+  const label = $('squeezeAllLabel');
+  squeezeAllBusy = true;
+  button.disabled = true;
+  label.textContent = tr('Сжимаю…');
+  let compressed = 0;
+  let failed = 0;
+  let lastWhy = '';
+  try {
+    for (let i = 0; i < targets.length; i++) {
+      const r = targets[i];
+      label.textContent = tr('Сжимаю {i}/{n}…', { i: i + 1, n: targets.length });
+      let guard = 0;
+      try {
+        for (;;) {
+          const res = await post('/api/summarize', { a: r.keys[0], b: r.keys[1], d: r.d });
+          compressed += res.compressed || 0;
+          if (!res.left || ++guard > 20) break;
+        }
+      } catch (err) {
+        failed++;
+        lastWhy = err.message;
+      }
+    }
+    if (failed && !compressed) say(tr('Не сжато: {why}', { why: lastWhy }), true);
+    else if (failed) say(tr('Сжато сообщений: {n}. Не удалось: {fail}.', { n: compressed, fail: failed }), true);
+    else say(tr('Сжато сообщений: {n}.', { n: compressed }));
+  } finally {
+    squeezeAllBusy = false;
+    label.textContent = tr('Сжать все');
+    renderWeight();
+    renderFeed(new Set(), false);
+  }
+});
 
 // ---------- рабочий каталог ----------
 
@@ -4481,6 +4601,126 @@ function fileNode(m, f, n) {
 }
 
 const dayLabel = (day) => new Date(`${day}T00:00`).toLocaleDateString(I.locale(), { day: 'numeric', month: 'long', year: 'numeric' });
+
+const dayCal = { open: false, y: 0, m: 0, anchor: null, days: new Set() };
+
+function trafficDays() {
+  const f = { agents: filters.agents, types: filters.types, q: filters.q, dialog: filters.dialog, day: null };
+  return new Set(messageList().filter((m) => L.passes(m, f, state.here.root)).map((m) => m.t.slice(0, 10)));
+}
+
+function closeDayCal() {
+  dayCal.open = false;
+  dayCal.anchor = null;
+  const box = $('dayCal');
+  box.hidden = true;
+  box.replaceChildren();
+}
+
+function placeDayCal(anchor) {
+  const box = $('dayCal');
+  const r = anchor.getBoundingClientRect();
+  const w = 280;
+  const left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8);
+  box.style.left = `${left}px`;
+  box.style.top = '0px';
+  box.hidden = false;
+  const h = box.offsetHeight;
+  let top = r.bottom + 8;
+  if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 8);
+  box.style.top = `${top}px`;
+}
+
+function setDayFilter(day) {
+  filters.day = day || null;
+  closeDayCal();
+  renderFeed();
+}
+
+function dayCalNav(delta) {
+  dayCal.m += delta;
+  if (dayCal.m < 0) { dayCal.m = 11; dayCal.y--; }
+  if (dayCal.m > 11) { dayCal.m = 0; dayCal.y++; }
+  renderDayCal();
+  if (dayCal.anchor) placeDayCal(dayCal.anchor);
+}
+
+function renderDayCal() {
+  const box = $('dayCal');
+  const { y, m, days } = dayCal;
+  const title = new Date(y, m, 1).toLocaleDateString(I.locale(), { month: 'long', year: 'numeric' });
+  const week = [tr('пн'), tr('вт'), tr('ср'), tr('чт'), tr('пт'), tr('сб'), tr('вс')];
+  const first = (new Date(y, m, 1).getDay() + 6) % 7;
+  const count = new Date(y, m + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < first; i++) cells.push(el('button', { type: 'button', disabled: true }, ''));
+  for (let d = 1; d <= count; d++) {
+    const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const has = days.has(iso);
+    const on = filters.day === iso;
+    cells.push(el('button', {
+      type: 'button',
+      className: `${has ? 'has' : ''}${on ? ' on' : ''}`.trim(),
+      disabled: !has,
+      title: has ? dayLabel(iso) : '',
+      onclick: has ? () => setDayFilter(iso) : undefined,
+    }, String(d)));
+  }
+  const prev = el('button', { type: 'button', className: 'ghost iconbtn', ariaLabel: tr('Предыдущий месяц'), onclick: () => dayCalNav(-1) }, icon('arrow'));
+  prev.querySelector('.icon').style.transform = 'scaleX(-1)';
+  box.replaceChildren(
+    el('div', { className: 'day-cal-head' },
+      prev,
+      el('b', {}, title),
+      el('button', { type: 'button', className: 'ghost iconbtn', ariaLabel: tr('Следующий месяц'), onclick: () => dayCalNav(1) }, icon('arrow'))),
+    el('div', { className: 'day-cal-week' }, ...week.map((w) => el('span', {}, w))),
+    el('div', { className: 'day-cal-grid' }, ...cells),
+    el('div', { className: 'day-cal-foot' },
+      el('button', { type: 'button', className: 'ghost', hidden: !filters.day, onclick: () => setDayFilter(null) }, tr('Все даты'))));
+}
+
+function openDayCal(anchor, day) {
+  const [ys, ms] = day.split('-').map(Number);
+  dayCal.open = true;
+  dayCal.anchor = anchor;
+  dayCal.y = ys;
+  dayCal.m = ms - 1;
+  dayCal.days = trafficDays();
+  renderDayCal();
+  placeDayCal(anchor);
+}
+
+function dayNode(day) {
+  return el('li', {
+    className: `day${filters.day === day ? ' on' : ''}`,
+    role: 'button',
+    tabIndex: 0,
+    title: tr('Календарь: даты с перепиской'),
+    onclick: (e) => {
+      e.stopPropagation();
+      if (dayCal.open && dayCal.anchor === e.currentTarget) closeDayCal();
+      else openDayCal(e.currentTarget, day);
+    },
+    onkeydown: (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      e.currentTarget.click();
+    },
+  }, dayLabel(day));
+}
+
+document.addEventListener('pointerdown', (e) => {
+  if (!dayCal.open) return;
+  const box = $('dayCal');
+  if (box.contains(e.target) || e.target.closest?.('.day')) return;
+  closeDayCal();
+}, true);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && dayCal.open) closeDayCal();
+}, true);
+window.addEventListener('resize', () => { if (dayCal.open && dayCal.anchor) placeDayCal(dayCal.anchor); });
+window.addEventListener('scroll', () => { if (dayCal.open) closeDayCal(); }, true);
+
 const atBottom = () => $('wrap').scrollHeight - $('wrap').scrollTop - $('wrap').clientHeight < 80;
 let pinned = true; // лента стоит у нижнего края: новое и догрузившиеся превью держат её там
 /** Мгновенно, а не плавно: плавная прокрутка при каждой перерисовке дёргала бы ленту. */
@@ -4493,6 +4733,7 @@ function scrollToEnd(top = $('wrap').scrollHeight) {
 
 /** jump - прыгнуть в конец (первая загрузка, смена фильтра); иначе остаёмся, где читали, если только уже не стояли внизу. */
 function renderFeed(freshIds = new Set(), jump = true) {
+  if (dayCal.open) closeDayCal();
   const wrap = $('wrap');
   const prevTop = wrap.scrollTop;
   const stick = atBottom();
@@ -4503,7 +4744,7 @@ function renderFeed(freshIds = new Set(), jump = true) {
   const { items, matched, shown, summary } = L.feedItems({ messages: messageList(), summaries: state.summaries, filters, hereRoot: state.here.root, showCovered });
   const feed = $('feed');
   feed.replaceChildren(...items.map((item) =>
-    item.kind === 'day' ? el('li', { className: 'day' }, dayLabel(item.day))
+    item.kind === 'day' ? dayNode(item.day)
     : item.kind === 'summary' ? summaryNode(item)
     : messageNode(item.m, { fresh: freshIds.has(item.m.id), unread: unread.has(item.m.id), covered: item.covered, cont: item.cont, me })));
   // Выделенное, которого в ленте больше не видно (сменили фильтр, удалили), под удаление вслепую не идёт
@@ -4511,10 +4752,10 @@ function renderFeed(freshIds = new Set(), jump = true) {
   for (const id of [...marked]) if (!visible.has(id)) marked.delete(id);
   renderMarked();
   renderPair(matched);
-  const filtered = filters.agents.size || filters.types.size || filters.q;
+  const filtered = filters.agents.size || filters.types.size || filters.q || filters.day;
   if (!shown.length && !summary) {
     const empty = state.messages.size
-      ? el('li', { className: 'empty' }, el('b', {}, filtered ? tr('Под фильтры ничего не попало') : tr('В этой директории переписки нет')), filtered ? tr('Сними фильтр по агенту, типу или поиск - переписка в шине есть.') : tr('Переписку другого проекта открывает клик по его агенту слева.'))
+      ? el('li', { className: 'empty' }, el('b', {}, filtered ? tr('Под фильтры ничего не попало') : tr('В этой директории переписки нет')), filtered ? tr('Сними фильтр по агенту, типу, дате или поиск - переписка в шине есть.') : tr('Переписку другого проекта открывает клик по его агенту слева.'))
       : el('li', { className: 'empty' }, el('b', {}, tr('Переписки пока нет')), tr('Напиши агенту в форме снизу - сообщение появится здесь.'));
     if (state.messages.size && filtered) empty.append(el('br'), resetButton());
     feed.append(empty);
@@ -4698,6 +4939,7 @@ function resetFilters() {
   filters.agents.clear();
   filters.types.clear();
   filters.q = '';
+  filters.day = null;
   $('q').value = '';
   renderTypes();
   renderAgents();
@@ -7471,6 +7713,7 @@ function setLanguage(lang) {
   if (agentPanel.open) renderAccess();
   renderTypes(true);
   applyAgents({ agents: state.agents, here: state.here });
+  renderWeight();
   renderFeed(new Set(), false);
   renderUpdate();
   renderLimits();
