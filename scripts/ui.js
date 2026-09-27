@@ -463,7 +463,44 @@ function liveState() {
   return live;
 }
 
-const statePayload = () => ({ messages: [...messages.values()].sort(byId).slice(-STATE_MESSAGES).map(forPage), summaries: [...summaries.values()], dialogs: [...dialogs.values()], closed });
+/** Каталог ленты: проект, будущий attach или cwd — см. L.feedScope. */
+function feedScope(here) {
+  if (!here || typeof here !== 'object') return null;
+  if (here.root) return here.root;
+  if (here.attach && here.attach.root && !here.attach.refused) return here.attach.root;
+  return here.dir || here.cwd || null;
+}
+
+/** Сообщение текущего каталога UI: пути как samePath (Windows без сюрпризов регистра). */
+function messageInHere(m, hereRoot) {
+  if (!hereRoot) return false;
+  const roots = m && Array.isArray(m.roots) ? m.roots : [];
+  if (!roots.length) return false;
+  return roots.some((r) => samePath(r, hereRoot));
+}
+
+/** Пара/тред с локальным агентом этого каталога (ключ name@root). */
+function pairInHere(pair, hereRoot) {
+  if (!hereRoot) return false;
+  return String(pair || '').split('|').some((key) => {
+    const at = key.lastIndexOf('@');
+    return at >= 0 && samePath(key.slice(at + 1), hereRoot);
+  });
+}
+
+/** Лента страницы - только текущий каталог: иначе после cd на ещё не подключённый проект всплывала чужая история. */
+function statePayload(hereRoot) {
+  const root = hereRoot !== undefined ? hereRoot : feedScope(collectAgents().here);
+  const msgs = [...messages.values()].filter((m) => messageInHere(m, root)).sort(byId).slice(-STATE_MESSAGES).map(forPage);
+  const sums = [...summaries.values()].filter((s) => pairInHere(s.pair, root));
+  const dias = [...dialogs.values()].filter((d) => pairInHere(d.pair, root));
+  const shut = {};
+  for (const [thread, at] of Object.entries(closed)) {
+    const pair = String(thread).split('#')[0];
+    if (pairInHere(pair, root)) shut[thread] = at;
+  }
+  return { messages: msgs, summaries: sums, dialogs: dias, closed: shut };
+}
 const freshId = (f) => (f.summary ? f.summary.id : f.dialog ? f.dialog.id : f.id);
 const knownIds = () => new Set([...messages.keys(), ...[...summaries.values(), ...dialogs.values()].map((x) => x.id)]);
 
@@ -534,19 +571,21 @@ function tick(rebuild = false) {
       broadcast('schedule', schedule);
     }
   }
+  const hereRoot = feedScope(snapshot.here);
   if (before) {
     const kept = knownIds();
     if ([...before].some((id) => !kept.has(id))) {
-      broadcast('reset', statePayload());
+      broadcast('reset', statePayload(hereRoot));
       return snapshot;
     }
   }
-  // После пересборки без потерь в fresh лежит вся лента - вкладкам нужно только то, чего они ещё не видели
+  // После пересборки без потерь в fresh лежит вся лента - вкладкам нужно только то, чего они ещё не видели.
+  // Чужие проекты не шлём: иначе вкладка после cd снова заливала бы прошлую историю.
   const unseen = before ? fresh.filter((f) => !before.has(freshId(f))) : fresh;
-  const freshMessages = unseen.filter((f) => !f.summary && !f.dialog).sort(byId);
+  const freshMessages = unseen.filter((f) => !f.summary && !f.dialog && messageInHere(f, hereRoot)).sort(byId);
   if (freshMessages.length) broadcast('messages', freshMessages.map(forPage));
-  if (unseen.some((f) => f.summary)) broadcast('summaries', [...summaries.values()]);
-  if (unseen.some((f) => f.dialog)) broadcast('dialogs', [...dialogs.values()]);
+  if (unseen.some((f) => f.summary && pairInHere(f.summary.pair, hereRoot))) broadcast('summaries', [...summaries.values()].filter((s) => pairInHere(s.pair, hereRoot)));
+  if (unseen.some((f) => f.dialog && pairInHere(f.dialog.pair, hereRoot))) broadcast('dialogs', [...dialogs.values()].filter((d) => pairInHere(d.pair, hereRoot)));
   return snapshot;
 }
 
@@ -653,8 +692,12 @@ function switchTo(dir, { remember = true } = {}) {
     writeDirs(saved);
   }
   bus.auditNote(`ui cd | ${dir}`);
-  const snapshot = tick(true);
+  // Сначала here: вкладка сбросит чужую ленту. Потом tick/reset - уже с отфильтрованным statePayload.
+  let snapshot = null;
+  try { snapshot = collectAgents(); } catch { /* реестр занят - below tick */ }
   broadcast('here', snapshot ? snapshot.here : { cwd, dir: cwd, root: null, project: null });
+  snapshot = tick(true) || snapshot;
+  if (snapshot) broadcast('here', snapshot.here);
 }
 
 function changeDir(body) {
@@ -674,6 +717,37 @@ function pinDir(body) {
   }
   writeDirs(saved);
   return { ok: true, ...dirsState() };
+}
+
+/**
+ * Убрать каталог из списков UI и из реестра шины (если это проект). Папку, журнал и роли агентов не трогаем -
+ * повторное «Добавить проект» / attach вернёт их. Текущий каталог - переключаемся на другой или домой.
+ */
+function forgetDir(body) {
+  const dir = dirOf(body.dir);
+  const wasHere = samePath(cwd, dir) || (() => {
+    try { const h = collectAgents().here; return h.root && samePath(h.root, dir); } catch { return false; }
+  })();
+  const forgotten = bus.forgetProject(dir);
+  const saved = readDirs();
+  saved.pinned = saved.pinned.filter((p) => !samePath(p, dir));
+  saved.recent = saved.recent.filter((p) => !samePath(p, dir));
+  if (saved.last && samePath(saved.last, dir)) saved.last = '';
+  writeDirs(saved);
+  bus.auditNote(`ui forget | ${forgotten ? forgotten.name + ' | ' : ''}${dir}`);
+  if (wasHere) {
+    const next = saved.pinned.find(isDir) || saved.recent.find(isDir) || (() => {
+      try { return (collectAgents().agents.find((a) => a.kind === 'project' && a.alive) || {}).root; } catch { return ''; }
+    })() || os.homedir();
+    switchTo(next, { remember: false });
+  } else {
+    const snapshot = tick(true);
+    if (snapshot) {
+      agentsSignature = JSON.stringify(snapshot.agents);
+      broadcast('agents', snapshot);
+    }
+  }
+  return { ok: true, forgotten: Boolean(forgotten), name: forgotten ? forgotten.name : '', ...dirsState() };
 }
 
 /**
@@ -2021,7 +2095,7 @@ async function handle(req, res, port) {
       const snapshot = tick(true) || { agents: [], here: { cwd, root: null, project: null }, error: tr('Реестр шины сейчас не читается.') };
       let models = cursorModels.readModels();
       if (!models.length) models = await cursorModels.refresh().catch(() => []);
-      return reply(res, 200, { ...snapshot, page: pageVersion(), types: bus.TYPES, access: accessPayload(snapshot.here.root), ...limitsPayload(snapshot.here.root), ...statePayload(), live: liveState(), update: updatePayload(), rateLimits: rateLimits.readSnapshot(), cursorModels: models });
+      return reply(res, 200, { ...snapshot, page: pageVersion(), types: bus.TYPES, access: accessPayload(snapshot.here.root), ...limitsPayload(snapshot.here.root), ...statePayload(feedScope(snapshot.here)), live: liveState(), update: updatePayload(), rateLimits: rateLimits.readSnapshot(), cursorModels: models });
     }
     return reply(res, 404, { error: tr('Нет такой страницы.') });
   }
@@ -2081,6 +2155,7 @@ async function handle(req, res, port) {
     if (url.pathname === '/api/shortcut') return reply(res, 200, createShortcut());
     if (url.pathname === '/api/window') return reply(res, 200, { ok: app.saveWindow(bus.BUS, body) });
     if (url.pathname === '/api/dirs/pin') return reply(res, 200, pinDir(body));
+    if (url.pathname === '/api/dirs/forget') return reply(res, 200, forgetDir(body));
     if (url.pathname.startsWith('/api/schedule/')) return reply(res, 200, scheduleAction(url.pathname.slice('/api/schedule/'.length), body));
     if (url.pathname === '/api/read') {
       // Ответы агентов лежат в ящике оркестратора каталога UI. Пользователь открыл диалог агента - его ответы прочитаны: забираем,

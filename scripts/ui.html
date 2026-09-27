@@ -319,18 +319,24 @@
     font: 600 11px/1.2 var(--label); letter-spacing: .08em; text-transform: uppercase;
     color: var(--ink-soft);
   }
+  .projects-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px;
+    align-items: stretch; border-radius: 8px;
+  }
+  .projects-row:hover { background: var(--glass-2); }
+  .projects-row.current { background: var(--copper-soft); }
   .projects-item {
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px;
     align-items: center; width: 100%; margin: 0; padding: 8px 10px;
     border: 0; border-radius: 8px; background: none; color: var(--ink);
-    text-align: left; cursor: pointer; font: inherit;
+    text-align: left; cursor: pointer; font: inherit; min-width: 0;
   }
-  .projects-item:hover:not(:disabled) { background: var(--glass-2); }
+  .projects-item:hover:not(:disabled) { background: transparent; }
   .projects-item:disabled { opacity: .7; cursor: default; }
-  .projects-item.current { background: var(--copper-soft); color: var(--copper); }
+  .projects-row.current .projects-item { color: var(--copper); }
   .projects-item.missing { opacity: .55; }
   .projects-item .icon { grid-row: 1 / span 2; color: var(--ink-soft); }
-  .projects-item.current .icon { color: var(--copper); }
+  .projects-row.current .projects-item .icon { color: var(--copper); }
   .projects-item .name {
     min-width: 0; font: 600 13px/1.3 var(--body);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -344,6 +350,11 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     direction: rtl; text-align: left;
   }
+  .projects-forget {
+    align-self: center; margin-right: 4px; min-height: var(--h-sm); width: var(--h-sm);
+    padding: 0; color: var(--ink-soft); border-radius: var(--r-sm);
+  }
+  .projects-forget:hover:not(:disabled) { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
   .projects-more {
     display: flex; align-items: center; gap: 8px; width: 100%;
     margin: 4px 0 0; padding: 8px 10px; border: 0; border-top: 1px solid var(--line);
@@ -3757,7 +3768,7 @@ let squeezeAllBusy = false;
 
 /** Кнопка в шапке - сумма несжатого по каталогу UI; открытая панель перерисовывается вместе с ней. */
 function renderWeight() {
-  const report = L.weightReport(messageList(), state.summaries, state.here.root);
+  const report = L.weightReport(messageList(), state.summaries, L.feedScope(state.here));
   $('weightSum').textContent = tr('≈{n} ток.', { n: L.short(report.total.tokens + report.total.summary) });
   $('weightBtn').classList.toggle('heavy', report.rows.some((row) => row.here && row.heavy));
   const ready = report.rows.filter((r) => r.here && r.fresh >= 2);
@@ -3822,7 +3833,7 @@ $('weightClose').addEventListener('click', closeWeight);
 $('weightBackdrop').addEventListener('click', closeWeight);
 
 $('squeezeAllBtn').addEventListener('click', async () => {
-  const report = L.weightReport(messageList(), state.summaries, state.here.root);
+  const report = L.weightReport(messageList(), state.summaries, L.feedScope(state.here));
   const targets = report.rows.filter((r) => r.here && r.fresh >= 2);
   if (!targets.length) {
     say(tr('Нечего сжимать: в этой директории нет диалогов с двумя и более несжатыми сообщениями'), true);
@@ -4099,7 +4110,7 @@ function projectMenuItem(d) {
   const btn = el('button', {
     type: 'button',
     role: 'menuitem',
-    className: `projects-item${d.current ? ' current' : ''}${d.missing ? ' missing' : ''}`,
+    className: `projects-item${d.missing ? ' missing' : ''}`,
     disabled: d.missing || d.current,
     title,
   },
@@ -4111,7 +4122,34 @@ function projectMenuItem(d) {
     closeProjectsMenu();
     changeDir(d.path);
   });
-  return btn;
+  const forget = el('button', {
+    type: 'button',
+    className: 'ghost iconbtn projects-forget',
+    title: tr('Убрать из списка: папка и агенты на диске останутся'),
+    ariaLabel: tr('Убрать «{name}» из списка', { name: d.project || d.name }),
+  }, icon('x'));
+  forget.addEventListener('click', (e) => {
+    e.stopPropagation();
+    forgetProject(d);
+  });
+  return el('div', { className: `projects-row${d.current ? ' current' : ''}` }, btn, forget);
+}
+
+async function forgetProject(d) {
+  const name = d.project || d.name || d.path;
+  const ask = tr('Убрать «{name}» из списка проектов? Папка на диске, переписка и настроенные агенты останутся - при повторном добавлении они снова появятся.', { name });
+  if (!await askConfirm(ask, { title: tr('Убрать из списка'), ok: tr('Убрать'), danger: true })) return;
+  try {
+    const r = await post('/api/dirs/forget', { dir: d.path });
+    dirsData = r;
+    if (projectsOpen) renderProjectsMenu();
+    if (dirsOpen) renderDirs();
+    say(r.forgotten
+      ? tr('«{name}» убран из шины и списка. Папка и агенты на месте.', { name: r.name || name })
+      : tr('«{name}» убран из списка.', { name }));
+  } catch (err) {
+    say(tr('Не убрано: {why}', { why: err.message }), true);
+  }
 }
 
 function renderProjectsMenu() {
@@ -4606,7 +4644,7 @@ const dayCal = { open: false, y: 0, m: 0, anchor: null, days: new Set() };
 
 function trafficDays() {
   const f = { agents: filters.agents, types: filters.types, q: filters.q, dialog: filters.dialog, day: null };
-  return new Set(messageList().filter((m) => L.passes(m, f, state.here.root)).map((m) => m.t.slice(0, 10)));
+  return new Set(messageList().filter((m) => L.passes(m, f, L.feedScope(state.here))).map((m) => m.t.slice(0, 10)));
 }
 
 function closeDayCal() {
@@ -4741,7 +4779,7 @@ function renderFeed(freshIds = new Set(), jump = true) {
   const unread = L.unreadIds(messageList(), me && me.repliesBy, me && me.key);
   scheduleRead(); // лента перерисовывается и на смену выбора, и на новое состояние агентов - оба повода перепроверить
   renderDialogs();
-  const { items, matched, shown, summary } = L.feedItems({ messages: messageList(), summaries: state.summaries, filters, hereRoot: state.here.root, showCovered });
+  const { items, matched, shown, summary } = L.feedItems({ messages: messageList(), summaries: state.summaries, filters, hereRoot: L.feedScope(state.here), showCovered });
   const feed = $('feed');
   feed.replaceChildren(...items.map((item) =>
     item.kind === 'day' ? dayNode(item.day)
@@ -4995,9 +5033,37 @@ function toggleFilters() {
 
 // ---------- данные ----------
 
+/** Каталог UI: смена root/cwd - другой проект, чужая лента и выбор агентов больше не годятся. */
+const hereScopeOf = (here) => L.feedScope(here) || '';
+
+/**
+ * Сброс контекста прошлого каталога: выбор агентов обходил фильтр «только эта директория»,
+ * и после cd в ленте оставалась чужая переписка. Ленту очищаем сразу - пока грузится /api/state.
+ */
+function dropWorkspaceView() {
+  filters.agents.clear();
+  filters.dialog = null;
+  filters.day = null;
+  chosenDialog.clear();
+  showCovered = false;
+  marked.clear();
+  state.messages = new Map();
+  state.summaries = new Map();
+  state.dialogs = new Map();
+  state.closed = {};
+  lastId = '';
+  feedLoaded = false;
+  closeDayCal();
+  renderMarked();
+}
+
 /** feedNext - следом придёт лента (load): список агентов с весом переписки рисуем один раз, уже по ней. */
 function applyAgents(snapshot, feedNext = false) {
+  const prevScope = hereScopeOf(state.here);
   const prevRoot = composeDraftRoot;
+  const nextScope = hereScopeOf(snapshot.here);
+  const moved = Boolean(prevScope && nextScope && prevScope !== nextScope);
+  if (moved) dropWorkspaceView();
   state.agents = snapshot.agents;
   state.here = snapshot.here;
   state.hues = L.assignHues(state.agents);
@@ -5005,7 +5071,10 @@ function applyAgents(snapshot, feedNext = false) {
   $('project').replaceChildren(snapshot.here.project || pendingName || tr('каталог не в шине'), ...(snapshot.here.project ? [el('small', {}, tr('оркестратор'))] : pendingName ? [el('small', {}, tr('подключится с первым сообщением'))] : []));
   $('cwd').textContent = `‎${snapshot.here.cwd}`; // LRM: в rtl-обрезке путь остаётся слева направо
   $('cwd').title = snapshot.here.cwd;
-  if (!feedNext) renderAgents();
+  if (!feedNext) {
+    renderAgents();
+    if (moved) renderFeed(new Set(), true);
+  }
   renderRecipients();
   renderMine();
   // Сменился каталог - свой черновик; первый apply после загрузки - вернуть недописанное
@@ -5149,11 +5218,16 @@ const KEEP_MESSAGES = 5000; // как у сервера (ui.js): вкладка,
 let lastId = ''; // старший id в ленте: сообщения приходят по порядку, пересортировка нужна, только когда пришло более раннее
 
 function applyMessages(list, fresh, jump = false) {
+  const hereRoot = L.feedScope(state.here);
   let resort = false;
+  const accepted = [];
   for (const m of list) {
+    // Без выбранного агента чужой каталог в Map не кладём - иначе после cd снова всплывала чужая история
+    if (!filters.agents.size && !L.messageInHere(m, hereRoot)) continue;
     if (m.id < lastId && !state.messages.has(m.id)) resort = true; // знакомый id остаётся на своём месте в Map
     if (m.id > lastId) lastId = m.id;
     state.messages.set(m.id, { ...m, files: m.files || [] });
+    accepted.push(m);
   }
   if (resort) state.messages = new Map([...state.messages].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
   let extra = state.messages.size - KEEP_MESSAGES;
@@ -5161,7 +5235,7 @@ function applyMessages(list, fresh, jump = false) {
     if (extra-- <= 0) break;
     state.messages.delete(id);
   }
-  renderFeed(fresh ? new Set(list.map((m) => m.id)) : new Set(), jump);
+  renderFeed(fresh ? new Set(accepted.map((m) => m.id)) : new Set(), jump);
 }
 
 let arrived = null; // сообщения, пришедшие по SSE за время запроса /api/state
@@ -5200,9 +5274,21 @@ async function load() {
 let feedLoaded = false; // в конец ленту ставит только первая загрузка: реконнект SSE и reset после удаления место чтения не трогают
 
 function replaceFeed(data, late = []) {
-  state.summaries = new Map((data.summaries || []).map((x) => [x.thread || x.pair, x]));
-  state.dialogs = new Map((data.dialogs || []).map((x) => [x.thread, x]));
-  state.closed = data.closed || {};
+  const hereRoot = L.feedScope(state.here);
+  const pairOk = (pair) => {
+    if (!hereRoot || filters.agents.size) return true;
+    return String(pair || '').split('|').some((key) => {
+      const at = key.lastIndexOf('@');
+      return at >= 0 && L.dirKey(key.slice(at + 1)) === L.dirKey(hereRoot);
+    });
+  };
+  state.summaries = new Map((data.summaries || []).filter((x) => pairOk(x.pair)).map((x) => [x.thread || x.pair, x]));
+  state.dialogs = new Map((data.dialogs || []).filter((x) => pairOk(x.pair)).map((x) => [x.thread, x]));
+  const shut = {};
+  for (const [thread, at] of Object.entries(data.closed || {})) {
+    if (pairOk(String(thread).split('#')[0])) shut[thread] = at;
+  }
+  state.closed = shut;
   state.messages = new Map();
   lastId = '';
   applyMessages([...(data.messages || []), ...late], false, !feedLoaded);
@@ -5260,8 +5346,22 @@ function connect() {
     renderFeed(new Set(), false);
   });
   // Рабочий каталог сменили (эта вкладка, соседняя или повторный bus.js ui): пороги, доступы и лента - другого проекта, берём состояние целиком.
-  // Открытую форму настроек закрываем: её правки - прошлого проекта, «Сохранить» записало бы их в новый
-  source.addEventListener('here', () => {
+  // Открытую форму настроек закрываем: её правки - прошлого проекта, «Сохранить» записало бы их в новый.
+  // here из события ставим сразу: иначе reset/messages после cd фильтровались ещё старым корнем.
+  source.addEventListener('here', (e) => {
+    try {
+      const here = JSON.parse(e.data);
+      if (here && typeof here === 'object') state.here = { ...state.here, ...here };
+    } catch { /* пустой here */ }
+    dropWorkspaceView();
+    const pendingName = !state.here.project && state.here.attach && state.here.attach.name;
+    $('project').replaceChildren(state.here.project || pendingName || tr('каталог не в шине'), ...(state.here.project ? [el('small', {}, tr('оркестратор'))] : pendingName ? [el('small', {}, tr('подключится с первым сообщением'))] : []));
+    if (state.here.cwd) {
+      $('cwd').textContent = `‎${state.here.cwd}`;
+      $('cwd').title = state.here.cwd;
+    }
+    renderAgents();
+    renderFeed(new Set(), true);
     if (settingsOpen) {
       const dirty = Object.keys(settingsDirtyPatch).length > 0;
       settingsDirtyPatch = {}; // без confirm: отказ оставил бы форму прошлого проекта открытой

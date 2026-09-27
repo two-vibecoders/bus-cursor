@@ -87,6 +87,27 @@
   /** «09:41»; времени нет (состояние правили руками, старая запись) - «-», а не «Inval» от Invalid Date. */
   const clock = (ms) => (Number.isFinite(new Date(ms).getTime()) ? new Date(ms).toTimeString().slice(0, 5) : '-');
 
+  /**
+   * Каталог, чью ленту показывает UI: зарегистрированный проект, иначе корень будущего attach,
+   * иначе сам cwd. Без области чужие журналы не показываем (иначе cd на ещё не подключённый
+   * каталог оставлял историю прошлого проекта — here.root был null и фильтр отключался).
+   */
+  function feedScope(here) {
+    if (!here || typeof here !== 'object') return '';
+    if (here.root) return here.root;
+    if (here.attach && here.attach.root && !here.attach.refused) return here.attach.root;
+    return here.dir || here.cwd || '';
+  }
+
+  /** Сообщение относится к каталогу UI: пути сравниваем через dirKey (Windows без регистра). */
+  function messageInHere(m, hereRoot) {
+    if (!hereRoot) return false;
+    const roots = m && Array.isArray(m.roots) ? m.roots : [];
+    if (!roots.length) return false;
+    const want = dirKey(hereRoot);
+    return roots.some((r) => dirKey(r) === want);
+  }
+
   function passes(m, filters, hereRoot) {
     const pair = selectedPair(filters);
     if (pair ? pairOf(m) !== pair : filters.agents.size && !filters.agents.has(m.fromKey) && !filters.agents.has(m.toKey)) return false;
@@ -96,7 +117,7 @@
     if (filters.day && m.t.slice(0, 10) !== filters.day) return false;
     // Без выбора агента лента - только каталог UI; выбранного агента или пару видно из любого каталога:
     // галочка «только эта директория» давала пустую ленту на клик по агенту из «Другие проекты»
-    if (!filters.agents.size && hereRoot && m.roots.length && !m.roots.includes(hereRoot)) return false;
+    if (!filters.agents.size && !messageInHere(m, hereRoot)) return false;
     if (filters.q) {
       const q = filters.q.toLowerCase();
       if (!`${m.from} ${m.to} ${m.type} ${m.text} ${(m.files || []).map((f) => f.name).join(' ')}`.toLowerCase().includes(q)) return false;
@@ -309,7 +330,7 @@
       }
       const row = pairs.get(thread);
       row.list.push(m);
-      if (!hereRoot || !m.roots.length || m.roots.includes(hereRoot)) row.here = true;
+      if (!hereRoot || messageInHere(m, hereRoot)) row.here = true;
     }
     const rows = [...pairs.values()].map(({ list, ...row }) => {
       const fresh = list.filter((m) => !covered(m, summaries));
@@ -1028,8 +1049,8 @@
   }
 
   return {
-    dirKey, dirName, dirGroups, atToken, fileScore, fileMatches, mentionPath,
-    ORCH_HUE, hue, assignHues, duration, rateLimits, tabContext, messageUsage, pairKey, pairOf, selectedPair, threadKey, threadOf, viewPair, viewThread, covered, tokensOf, summaryTokens, weightReport, sizeOf, short, passes, splitByQuery, markdown, markdownInline, unreadIds, readTarget, nextSelection, feedItems, pairInfo, groupAgents, agentStatus, clock, elapsed, runMark, liveLines, liveLast, canBtw, canEvolve, wakeActionNote, blockedNote, writable, nameOf, dictated, spaceTap, voiceNote, lineDiff, raisedNote, sentNote, dialogTarget, dialogTitle, dialogTabs, validAgentName,
+    dirKey, dirName, dirGroups, feedScope, atToken, fileScore, fileMatches, mentionPath,
+    ORCH_HUE, hue, assignHues, duration, rateLimits, tabContext, messageUsage, pairKey, pairOf, selectedPair, threadKey, threadOf, viewPair, viewThread, covered, tokensOf, summaryTokens, weightReport, sizeOf, short, messageInHere, passes, splitByQuery, markdown, markdownInline, unreadIds, readTarget, nextSelection, feedItems, pairInfo, groupAgents, agentStatus, clock, elapsed, runMark, liveLines, liveLast, canBtw, canEvolve, wakeActionNote, blockedNote, writable, nameOf, dictated, spaceTap, voiceNote, lineDiff, raisedNote, sentNote, dialogTarget, dialogTitle, dialogTabs, validAgentName,
     SCHEDULE_MINUTE_STEPS, SCHEDULE_HOUR_STEPS, buildScheduleCron, scheduleCronPreset, scheduleTarget, scheduleNextLabel, scheduleLastNote, scheduleDaemonNote, scheduleBadge, scheduleGroups, validScheduleName, isFrequentError,
     ACCESS_PRESETS, accessPreset, accessDenied, accessFromDenied, accessWeight, accessDeltaLabel,
     setThresholds, settingsDirty, settingsFieldError,

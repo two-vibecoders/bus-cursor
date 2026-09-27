@@ -2013,6 +2013,30 @@ function removeJunk(ctx, name) {
   return null;
 }
 
+/**
+ * Убрать проект из реестра шины, не трогая папку на диске: журнал, локальные агенты и роли остаются.
+ * Повторный attach/init подхватит их снова. → { name, root } или null, если такого проекта нет.
+ */
+function forgetProject(root) {
+  const want = path.resolve(String(root || ''));
+  if (!want) return null;
+  return withRegistryLock(() => {
+    const agents = loadRegistry(REGISTRY);
+    const name = Object.keys(agents).find((n) => agents[n] && agents[n].project && samePath(agents[n].project, want));
+    if (!name) return null;
+    const target = describe(contextOf(want), name);
+    if (target) {
+      try { uninstallHook(target.where); } catch { /* каталога уже нет */ }
+      if (fs.existsSync(target.where)) releaseOrchestrator(target);
+      drain(target);
+    }
+    delete agents[name];
+    saveRegistry(REGISTRY, agents);
+    auditNote(`forget | ${name} | ${want}`);
+    return { name, root: want };
+  });
+}
+
 function remove(name, force) {
   const { target, left, junk } = withRegistryLock(() => {
     const ctx = context();
@@ -2128,7 +2152,7 @@ function main(argv) {
 module.exports = {
   CONFIG_DIR, BUS, REGISTRY, TYPES, MAX_LENGTH, ACCESS_GROUPS, parseDenied, deniedLine, UI_REPLY, BusError,
   AVATAR_MAX, normalizeAvatar, pickAvatar, usedAvatars, ensureAvatars,
-  loadRegistry, context, contextOf, describe, projectSelf, attach, attachPlan, ensureGlobalHook, setup, isSubagent, journalFile, findDefinition, isWrapper, enroll, init,
+  loadRegistry, context, contextOf, describe, projectSelf, attach, attachPlan, forgetProject, ensureGlobalHook, setup, isSubagent, journalFile, findDefinition, isWrapper, enroll, init,
   splitDefinition, joinDefinition, readRole, checkBody, readJournal, roleFileOf, roleText, agentDirs, createAgent, updateAgent, syncWrapper, deleteAgent, isInside,
   readStdin, writeAtomic, appendRotating, clean, oneLine, checkAttachments, deliver, journalNote, writeSummary, newDialog, currentDialog, isDialogPair, checkDialog, rewriteJournal, auditNote, autoWake, orchestratorOf, requireAlive, drain, unread,
   syncOrchestrator, applyOrchestrator,
