@@ -30,7 +30,7 @@ node "$env:USERPROFILE\.cursor\skills\bus-cursor\scripts\bus.js" ui
 | `ui [--app]` | веб-интерфейс (ярлык **Bus Cursor** на рабочем столе) |
 | `setup` | хуки Cursor + ярлык на рабочий стол |
 | `inbox` | показать и очистить входящие |
-| `send <кому> <ТИП> <текст>` | сообщение; типы `TASK`, `QUESTION`, `DONE` |
+| `send <кому> <ТИП> [--md <файл>] <текст>` | сообщение; типы `TASK`, `QUESTION`, `DONE`; кириллица на Windows - через `--md` (UTF-8 файл) |
 | `agents` | кто в Bus Cursor |
 | `add <имя>` | зарегистрировать агента (движок Cursor по умолчанию) |
 | `history [кто] [N]` | хвост переписки |

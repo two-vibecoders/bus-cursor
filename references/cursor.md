@@ -13,7 +13,9 @@
 
 ```bash
 node .../bus.js add my-agent
-node .../bus.js send my-agent TASK "..."
+node .../bus.js send my-agent TASK "short latin ok"
+# кириллица / длинный текст на Windows: Write UTF-8 файл, затем
+node .../bus.js send my-agent DONE --md .cursor/bus-cursor/out/reply.md
 ```
 
 ## UI как оркестратор

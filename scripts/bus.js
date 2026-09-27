@@ -76,7 +76,8 @@ const USAGE = `Использование: node bus.js [--as <имя>] <кома
   init <имя>                  подключить текущий проект под своим именем (необязательно: без init проект подключается сам первой командой - именем папки)
   add <имя> [--global] [--runtime cursor]   зарегистрировать субагента: .claude/agents/<имя>.md проекта или ~/.claude/agents/<имя>.md (нет там - .cursor/agents/, движок cursor); блока «Bus Cursor» в роли нет - допишет
   runtime <имя> [claude|cursor] [--model <м>]   движок фонового подъёма субагента: показать или сменить; --model - модель Cursor («-» - сбросить); только оркестратор
-  send <кому> <ТИП> [--btw] [--evolve] [--file <путь>]… <текст>   отправить сообщение до ${MAX_LENGTH} символов; текст «-» - взять из stdin, переносы строк сохраняются
+  send <кому> <ТИП> [--btw] [--evolve] [--file <путь>]… [--md <файл>] <текст|->
+                              сообщение до ${MAX_LENGTH} символов; «-» - текст из stdin; --md - UTF-8 файл (кириллица на Windows - только так или stdin)
                               --btw - агент сейчас работает в фоне: вбросить ему посреди хода, а не ждать конца; не работает - обычная отправка
                               --evolve - самоправка роли: после DONE агент разберёт свою работу и предложит правку роли, пользователь примет её в UI; только от проекта субагенту
   broadcast <ТИП> [--file <путь>]… <текст>     отправить всем, кроме себя
@@ -132,6 +133,82 @@ function saveRegistry(file, agents) {
   writeAtomic(file, JSON.stringify({ agents }, null, 2) + '\n');
 }
 
+/** Иконки агентов: assets/avatars/1.png…10.png; номер хранится в реестре как icon. */
+const AVATAR_MAX = 10;
+
+function normalizeAvatar(n) {
+  const v = Number(n);
+  return Number.isInteger(v) && v >= 1 && v <= AVATAR_MAX ? v : 0;
+}
+
+/** Уже занятые номера в одном или нескольких реестрах. */
+function usedAvatars(...lists) {
+  const used = new Set();
+  for (const agents of lists) {
+    for (const a of Object.values(agents || {})) {
+      const n = normalizeAvatar(a && a.icon);
+      if (n) used.add(n);
+    }
+  }
+  return used;
+}
+
+/** Случайный номер 1…AVATAR_MAX: сначала свободные среди used, иначе любой (повторы только когда все 10 заняты). */
+function pickAvatar(used = new Set()) {
+  const free = [];
+  for (let i = 1; i <= AVATAR_MAX; i++) if (!used.has(i)) free.push(i);
+  const pool = free.length ? free : Array.from({ length: AVATAR_MAX }, (_, i) => i + 1);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/**
+ * Все реестры с иконками: глобальный + локальные каждого живого проекта.
+ * Уникальность считается по всей шине, а не по одному файлу.
+ */
+function avatarPacks(globals = loadRegistry(REGISTRY)) {
+  const packs = [{ file: REGISTRY, agents: globals }];
+  for (const name of Object.keys(globals)) {
+    const entry = globals[name];
+    if (!entry || !entry.project || !fs.existsSync(entry.project)) continue;
+    const file = localRegistry(entry.project);
+    if (!fs.existsSync(file)) continue;
+    try {
+      packs.push({ file, agents: loadRegistry(file) });
+    } catch {
+      // битый локальный реестр - иконки ему не раздаём, список агентов и так упрётся позже
+    }
+  }
+  return packs;
+}
+
+/** Занятые номера по всей шине (проекты + все локальные/глобальные субагенты). */
+const allUsedAvatars = (globals) => usedAvatars(...avatarPacks(globals).map((p) => p.agents));
+
+/**
+ * Дописать icon всем записям без него: уникальные по возможности среди globals + локальных реестров проектов.
+ * → сколько дописали. Зовут collectAgents UI; новые агенты берут номер через pickAvatar(allUsedAvatars).
+ */
+function ensureAvatars(globals = loadRegistry(REGISTRY)) {
+  const packs = avatarPacks(globals);
+  const used = usedAvatars(...packs.map((p) => p.agents));
+  let total = 0;
+  for (const { file, agents } of packs) {
+    let changed = 0;
+    for (const name of Object.keys(agents).sort()) {
+      if (normalizeAvatar(agents[name].icon)) continue;
+      const n = pickAvatar(used);
+      agents[name].icon = n;
+      used.add(n);
+      changed++;
+    }
+    if (changed) {
+      saveRegistry(file, agents);
+      total += changed;
+    }
+  }
+  return total;
+}
+
 /** Чтение-правка-запись реестра под локом: два одновременных init иначе теряют одну из регистраций. */
 const withRegistryLock = (fn) => withLock(LOCK, fn, () => new BusError('Реестр занят другой командой bus.js. Повтори через пару секунд.'));
 
@@ -174,11 +251,15 @@ function context(hook = {}) {
  */
 function describe(ctx, name) {
   if (!NAME.test(name)) return null; // имя идёт в путь ящика: ключ вроде «../../x» из правленого руками реестра увёл бы запись за пределы bus/
-  if (ctx.locals[name]) return { name, kind: 'local', root: ctx.root, box: path.join(ctx.root, '.cursor', 'bus-cursor', name), where: path.join(ctx.root, ctx.locals[name].def) };
+  if (ctx.locals[name]) {
+    const entry = ctx.locals[name];
+    return { name, kind: 'local', root: ctx.root, box: path.join(ctx.root, '.cursor', 'bus-cursor', name), where: path.join(ctx.root, entry.def), icon: normalizeAvatar(entry.icon) };
+  }
   const entry = ctx.globals[name];
   if (!entry || (!entry.project && typeof entry.def !== 'string')) return null; // запись без пути - мусор, адресатом не считаем (как и {human: true} от прежних версий)
-  if (entry.project) return { name, kind: 'project', root: entry.project, box: path.join(entry.project, '.cursor', 'bus-cursor', name), where: entry.project };
-  return { name, kind: 'global', root: null, box: path.join(BUS, name), where: path.join(CONFIG_DIR, entry.def) };
+  const icon = normalizeAvatar(entry.icon);
+  if (entry.project) return { name, kind: 'project', root: entry.project, box: path.join(entry.project, '.cursor', 'bus-cursor', name), where: entry.project, icon };
+  return { name, kind: 'global', root: null, box: path.join(BUS, name), where: path.join(CONFIG_DIR, entry.def), icon };
 }
 
 /** Контекст произвольного каталога - для UI: он показывает агентов всех проектов, а не только видимых из cwd. */
@@ -1033,10 +1114,9 @@ function notifyWake(orchestrator, from, to, what) {
 }
 
 /**
- * [ТИП] [--btw] [--evolve] [--file <путь>]… <текст...> → { type, text, attachments, btw, evolve }. Текст «-» читается из stdin: так не надо экранировать
- * кавычки в шелле. --file, --btw и --evolve - только до текста: дальше это просто слово, как и --as. Тип обязателен, регистр первого слова не важен.
- * Тип после --file или внутри аргумента в кавычках («TASK сделай X») - тоже тип, но только заглавными. Типа нет - отказ:
- * сообщений «к сведению» в шине нет; старые STATUS / FYI / ACK живут только в журналах.
+ * [ТИП] [--btw] [--evolve] [--file <путь>]… [--md <файл>] <текст...> → { type, text, attachments, btw, evolve }.
+ * Текст «-» - из stdin; --md - UTF-8 файл (на Windows кириллица в argv PowerShell превращается в «???» - только --md или stdin из файла).
+ * --file / --btw / --evolve / --md - только до текста. Тип обязателен.
  */
 function parseMessage(args, limits = settings.DEFAULTS) {
   const word = String(args[0] || '').toUpperCase();
@@ -1044,23 +1124,63 @@ function parseMessage(args, limits = settings.DEFAULTS) {
   let at = type ? 1 : 0;
   const sources = [];
   const flags = { '--btw': false, '--evolve': false };
+  let mdFile = '';
   const isFlag = (arg) => Object.hasOwn(flags, String(arg));
-  for (; args[at] === '--file' || isFlag(args[at]); at += isFlag(args[at]) ? 1 : 2) {
+  for (; args[at] === '--file' || args[at] === '--md' || isFlag(args[at]); ) {
     if (isFlag(args[at])) {
       flags[args[at]] = true;
+      at += 1;
+      continue;
+    }
+    if (args[at] === '--md') {
+      if (!args[at + 1]) throw new BusError('--md: не указан путь к файлу с текстом.');
+      if (mdFile) throw new BusError('--md: укажи один файл.');
+      mdFile = args[at + 1];
+      at += 2;
       continue;
     }
     if (!args[at + 1]) throw new BusError('--file: не указан путь.');
     sources.push({ src: args[at + 1] });
+    at += 2;
   }
   const attachments = checkAttachments(sources, fileLimits(limits));
   let raw = args.slice(at).join(' ');
   const late = !type && /^(\S+)(?:\s+([\s\S]+))?$/.exec(raw);
   if (late && TYPES.includes(late[1])) [type, raw] = [late[1], late[2] || ''];
   if (!type) throw new BusError(`Укажи тип сообщения: ${TYPES.join(', ')}. Пример: send dima TASK <текст>`);
-  const text = clean(raw === '-' ? readStdin() : raw, limits['message.maxLength']) || (attachments.length ? '(вложение)' : '');
+  if (mdFile && raw && raw !== '-') throw new BusError('--md: текст в аргументах не нужен - он уже в файле.');
+  let body = '';
+  if (mdFile) body = readMdBody(mdFile);
+  else if (raw === '-') body = readStdin();
+  else body = raw;
+  if (looksGarbled(body)) {
+    throw new BusError('Текст похож на битую кодировку (кириллица стала «???»). На Windows не передавай русский текст аргументом shell: запиши UTF-8 файл и send <кто> DONE --md <файл>, либо Get-Content -Encoding utf8 <файл> | … send <кто> DONE -');
+  }
+  const text = clean(body, limits['message.maxLength']) || (attachments.length ? '(вложение)' : '');
   if (!text) throw new BusError('Пустое сообщение.');
   return { type, text, attachments, btw: flags['--btw'], evolve: flags['--evolve'] };
+}
+
+/** Тело сообщения из UTF-8 файла (--md): путь относительно cwd или абсолютный. */
+function readMdBody(rel) {
+  const file = path.resolve(String(rel || ''));
+  if (!rel || !fs.existsSync(file) || !fs.statSync(file).isFile()) throw new BusError(`--md: нет файла «${rel}».`);
+  const buf = fs.readFileSync(file);
+  if (buf.includes(0)) throw new BusError(`--md: «${rel}» похож на бинарник, нужен текстовый UTF-8.`);
+  return buf.toString('utf8').replace(/^\uFEFF/, '');
+}
+
+/**
+ * Аргументы shell на Windows часто превращают кириллицу в «?». Если в длинном тексте много «?» и нет ни одной русской буквы -
+ * скорее всего кодировка убита: лучше сразу отказать, чем положить кракозябры в журнал.
+ */
+function looksGarbled(text) {
+  const s = String(text || '');
+  if (s.length < 40) return false;
+  if (/[А-яЁё]/.test(s)) return false;
+  const q = (s.match(/\?/g) || []).length;
+  const letters = (s.match(/[A-Za-z]/g) || []).length;
+  return q >= 12 && q > Math.max(8, letters * 0.2);
 }
 
 /**
@@ -1123,7 +1243,7 @@ function init(name, dir, { quiet = false } = {}) {
     const current = Object.keys(agents).find((n) => agents[n].project && samePath(agents[n].project, root));
     if (current && current !== name) throw new BusError(`Проект уже зарегистрирован как «${current}». Сначала: bus.js remove`);
 
-    agents[name] = { project: root };
+    agents[name] = { project: root, icon: normalizeAvatar(agents[name] && agents[name].icon) || pickAvatar(allUsedAvatars(agents)) };
     saveRegistry(REGISTRY, agents);
   });
   const me = describe(contextOf(root), name);
@@ -1251,7 +1371,9 @@ function enroll({ root, name, isGlobal = false, wrap = false, runtime = '' }) {
     const wrote = !wrapper && ensureBusBlock(file, name);
 
     const agents = isGlobal ? globals : loadRegistry(registry);
-    agents[name] = { scope: isGlobal ? 'global' : 'local', def };
+    // Уникальность по всей шине; повторный enroll иконку не меняет. Повторы - только когда все 10 уже заняты
+    const icon = normalizeAvatar(agents[name] && agents[name].icon) || pickAvatar(allUsedAvatars(globals));
+    agents[name] = { scope: isGlobal ? 'global' : 'local', def, icon };
     saveRegistry(registry, agents);
     return { file, wrote, wrapper };
   });
@@ -2005,6 +2127,7 @@ function main(argv) {
 // Экспорт стоит до main(): команда ui подгружает ui.js, а тот - этот же модуль, и ему нужны уже готовые функции
 module.exports = {
   CONFIG_DIR, BUS, REGISTRY, TYPES, MAX_LENGTH, ACCESS_GROUPS, parseDenied, deniedLine, UI_REPLY, BusError,
+  AVATAR_MAX, normalizeAvatar, pickAvatar, usedAvatars, ensureAvatars,
   loadRegistry, context, contextOf, describe, projectSelf, attach, attachPlan, ensureGlobalHook, setup, isSubagent, journalFile, findDefinition, isWrapper, enroll, init,
   splitDefinition, joinDefinition, readRole, checkBody, readJournal, roleFileOf, roleText, agentDirs, createAgent, updateAgent, syncWrapper, deleteAgent, isInside,
   readStdin, writeAtomic, appendRotating, clean, oneLine, checkAttachments, deliver, journalNote, writeSummary, newDialog, currentDialog, isDialogPair, checkDialog, rewriteJournal, auditNote, autoWake, orchestratorOf, requireAlive, drain, unread,

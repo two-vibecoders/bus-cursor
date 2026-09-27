@@ -196,6 +196,7 @@ function wakeOf(box) {
 /** Все агенты машины: реестр шины + определения, которые в шину не заведены (им писать нельзя, показываем серым). */
 function collectAgents() {
   const globals = bus.loadRegistry(bus.REGISTRY);
+  bus.ensureAvatars(globals); // иконки текущим агентам без icon - один раз, дальше из реестра
   const plain = bus.contextOf(null, globals);
   // Каталог не в шине подключится сам с первым сообщением (attachPlan: будущее имя и корень). Подключить нельзя (домашняя папка,
   // ~/.claude), а живой проект в шине один - гадать нечего: ведём себя как открытые из него, иначе глобальным агентам писать
@@ -217,6 +218,7 @@ function collectAgents() {
       kind: agent.kind,
       root: agent.root,
       where: agent.where,
+      icon: agent.icon || 0,
       registered: true,
       alive: fs.existsSync(agent.where),
       unread: bus.unread(agent),
@@ -1210,6 +1212,7 @@ function serveFile(res, url) {
 // ---------- видеофон страницы ----------
 
 const BG_DIR = path.join(__dirname, '..', 'assets', 'bg');
+const AVATAR_DIR = path.join(__dirname, '..', 'assets', 'avatars');
 
 /** Ролики фона - то, что реально лежит в assets/bg: имена 1.mp4, 2.mp4…; папки нет - пусто, страница оставит только «Без видео». */
 function backgrounds() {
@@ -1241,6 +1244,17 @@ function serveBackground(req, res, name) {
     return pipeline(fs.createReadStream(file, { start, end }), res, () => {});
   }
   res.writeHead(200, { ...head, 'Content-Length': size });
+  pipeline(fs.createReadStream(file), res, () => {});
+}
+
+/** Аватар агента: номер 1…AVATAR_MAX из assets/avatars. Без токена - как favicon: картинка не секрет. */
+function serveAvatar(res, name) {
+  const n = bus.normalizeAvatar(name);
+  if (!n) return reply(res, 404, { error: tr('Нет такой иконки.') });
+  const file = path.join(AVATAR_DIR, `${n}.png`);
+  if (!fs.existsSync(file)) return reply(res, 404, { error: tr('Нет такой иконки.') });
+  const size = fs.statSync(file).size;
+  res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': size, 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
   pipeline(fs.createReadStream(file), res, () => {});
 }
 
@@ -1989,6 +2003,8 @@ async function handle(req, res, port) {
     if (url.pathname === '/api/window') return reply(res, 200, { window: app.loadWindow(bus.BUS) });
     const bg = /^\/bg\/(\d{1,2})\.mp4$/.exec(url.pathname);
     if (bg) return serveBackground(req, res, bg[1]);
+    const avatar = /^\/avatars\/(\d{1,2})\.png$/.exec(url.pathname);
+    if (avatar) return serveAvatar(res, avatar[1]);
     if (url.pathname === '/api/events') return subscribe(res);
     // <img> заголовок не пошлёт, поэтому токен - в адресе: чужая страница вложение даже картинкой не подтянет
     if (url.pathname === '/api/file') return url.searchParams.get('k') === token ? serveFile(res, url) : reply(res, 403, { error: tr('Нет токена страницы. Обнови вкладку.') });

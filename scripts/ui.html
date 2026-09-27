@@ -63,6 +63,7 @@
     --accent: #2aabee;
     --chat-mine: #effdde;
     --chat-theirs: #ffffff;
+    --avatar-disc: #ffffff;
     color-scheme: light;
   }
   :root[data-theme="dark"] {
@@ -93,6 +94,7 @@
     --scrim: #00000088; --veil: transparent;
     --chat-mine: #2b5278;
     --chat-theirs: #182533;
+    --avatar-disc: #1e2a36;
     color-scheme: dark;
   }
   /* flat: без видео и стекла; --field-base держит непрозрачный цвет поля для color-mix */
@@ -602,14 +604,21 @@
   .group > .label { display: block; padding: 0 12px 8px; }
   .group details > summary { cursor: pointer; padding: 0 12px 8px; list-style-position: inside; }
   /* Строка агента - стеклянная плашка, как юнит qwatra: 10 % → 20 % и чуть крупнее под курсором */
-  .agent { --hue: 0; --wire: hsl(var(--hue) var(--wire-s) var(--wire-l)); display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: start; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--r); padding: 8px 12px; position: relative; transition: background-color .25s, box-shadow .25s, transform .3s var(--ease); user-select: none; } /* двойной клик выбирает агента, а не выделяет его имя */
+  .agent { --hue: 0; --wire: hsl(var(--hue) var(--wire-s) var(--wire-l)); display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--r); padding: 8px 12px; position: relative; transition: background-color .25s, box-shadow .25s, transform .3s var(--ease); user-select: none; } /* двойной клик выбирает агента, а не выделяет его имя */
   .agent:hover { background: var(--glass-1); box-shadow: 0 1px 0 var(--edge) inset; }
   /* Выбранный - прозрачная тонировка цвета агента, гуще у левого края, и линия его цвета; рамки нет, обводка шумела.
      Без стекла: под видеофоном в тёмной теме --glass-* - тёмная подложка, и плашка темнела. Наружных теней нет - выбивались из плоской колонки.
      Линия - внутренняя тень: идёт по скруглению */
   .agent[aria-pressed="true"] { background: linear-gradient(90deg, color-mix(in srgb, var(--wire) 16%, transparent), color-mix(in srgb, var(--wire) 5%, transparent)); box-shadow: inset 2px 0 0 var(--wire), 0 1px 0 var(--edge) inset; }
   .agent .wire { width: 9px; height: 9px; margin: 7px 0 0 1px; rotate: 45deg; border-radius: 2px; background: hsl(var(--hue) var(--dot-s) var(--dot-l)); box-shadow: 0 0 8px -1px hsl(var(--hue) var(--dot-s) var(--dot-l)); } /* тот же цвет, что у узла агента на ветке */
-  .agent .name { display: block; font: 600 14px/1.4 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .agent .avatar { width: 22px; height: 22px; margin: 1px 0 0; border-radius: 6px; object-fit: cover; display: block; box-shadow: 0 0 0 1px color-mix(in srgb, var(--line) 70%, transparent); }
+  .agent .name { display: flex; align-items: center; gap: 6px; font: 600 14px/1.4 var(--mono); overflow: hidden; min-width: 0; }
+  .agent .name > .agent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .agent .agent-err {
+    flex: none; display: inline-grid; place-items: center;
+    width: 16px; height: 16px; color: var(--danger);
+  }
+  .agent .agent-err .icon { width: 14px; height: 14px; }
   .agent .kind { display: block; font-size: 12px; line-height: 1.45; color: var(--ink-soft); }
   .agent .note { display: block; } /* строкой, а не через «·»: точка повисала в конце строки при переносе */
   .agent .note.wait, .agent .note.load { color: var(--copper); }
@@ -619,9 +628,11 @@
   /* Непрочитанное у агента - не тревога: оно ждёт подъёма или следующего промпта. Медью залито только то, что ждёт самого пользователя */
   .agent .badge.wait { background: var(--glass-1); color: var(--ink-soft); box-shadow: inset 0 0 0 1px var(--line-strong); }
   .agent.running .wire { animation: live 1.4s ease-in-out infinite; }
+  .agent.running .avatar { animation: live 1.4s ease-in-out infinite; }
   @keyframes live { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--done) 60%, transparent), 0 0 8px var(--done); } 50% { box-shadow: 0 0 0 6px transparent, 0 0 14px var(--done); } }
   .agent.off .name { color: var(--ink-soft); }
   .agent.off .wire { background: none; box-shadow: inset 0 0 0 1.5px var(--ink-soft); }
+  .agent.off .avatar { opacity: .45; filter: grayscale(.35); }
   .agent.gone .name { text-decoration: line-through; }
   /* Карандаш - сосед строки, а не её часть: кнопка в кнопке невалидна. Место под него занято всегда - строка под курсором не прыгает */
   .agent-row { display: flex; align-items: flex-start; gap: 8px; }
@@ -787,19 +798,30 @@
   .day { position: relative; width: fit-content; margin: 16px 0 12px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--glass-2); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 1px 0 var(--edge) inset; font: 12px/1.2 var(--label); text-transform: uppercase; letter-spacing: .1em; color: var(--ink-soft); }
   .day::before { content: ""; position: absolute; left: calc(var(--cx) - 1px); top: 50%; margin-top: -1px; width: calc(0px - var(--cx)); height: 2px; background: var(--tap); }
   .day::after { content: ""; position: absolute; left: calc(var(--cx) - 5px); top: 50%; margin-top: -4px; width: 8px; height: 8px; transform: rotate(45deg); border-radius: 1.5px; background: var(--copper); box-shadow: 0 0 0 2px var(--bg), 0 0 10px var(--copper-glow); }
-  /* Карточка - стекло без размытия (см. шапку файла): полупрозрачная заливка, блик сверху, тень */
-  .msg { --hue: 0; --dot: hsl(var(--hue) var(--dot-s) var(--dot-l)); --px: calc(var(--cx) - 1px); /* ось рейки от края padding-box: рамка съедает 1px */ position: relative; margin: 0 0 10px; padding: 10px 14px 12px; background: var(--glass-1); border: 1px solid var(--line); border-radius: var(--r-lg); max-width: 860px; box-shadow: var(--shadow); transition: background-color .25s, border-color .25s, box-shadow .25s; }
+  /* Карточка - стекло без размытия (см. шапку файла): полупрозрачная заливка, блик сверху, тень.
+     width: fit-content - пузырь по тексту, иначе блок тянется на max-width и «свои справа» не читаются как чат */
+  .msg { --hue: 0; --dot: hsl(var(--hue) var(--dot-s) var(--dot-l)); --px: calc(var(--cx) - 1px); /* ось рейки от края padding-box: рамка съедает 1px */ position: relative; margin: 0 0 10px; padding: 10px 14px 12px; background: var(--glass-1); border: 1px solid var(--line); border-radius: var(--r-lg); width: fit-content; max-width: min(860px, 82cqw); box-shadow: var(--shadow); transition: background-color .25s, border-color .25s, box-shadow .25s; }
   .msg:hover { background: color-mix(in srgb, var(--glass-2) 70%, var(--glass-1)); border-color: var(--line-strong); }
   /* Отвод - плавное колено от узла вниз к шапке карточки, как ветка в графе коммитов. Кривая - маска: цвет остаётся за --tap */
   .msg::before { content: ""; position: absolute; left: var(--px); top: 3px; width: calc(0px - var(--cx)); height: 20px; background: var(--tap); -webkit-mask: var(--tap-curve) no-repeat; mask: var(--tap-curve) no-repeat; }
-  /* Узел на рейке - ромб цвета отправителя: контур - обычное, залит - сообщение пользователю, в медном ободке - ещё не прочитано */
+  /* Узел на рейке: с иконкой - диск темы; без - ромб (незаведённый / нет avatar) */
   .node { position: absolute; left: calc(var(--px) - 6px); top: -1px; width: 12px; height: 12px; rotate: 45deg; border-radius: 3px; border: 2.5px solid var(--dot); background: var(--bg); box-shadow: 0 0 8px -1px var(--dot); }
-  .msg.to-me .node, .msg.unread .node { background: var(--dot); }
+  .msg.to-me .node:not(.has-avatar), .msg.unread .node:not(.has-avatar) { background: var(--dot); }
   .msg.unread .node { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--copper), 0 0 14px 2px var(--copper-glow); }
+  .node.has-avatar {
+    rotate: 0deg; width: 26px; height: 26px; left: calc(var(--px) - 13px); top: -8px;
+    border: 0; border-radius: 50%; background: var(--avatar-disc);
+    box-shadow: 0 0 0 2px var(--bg); display: grid; place-items: center; overflow: hidden; padding: 0;
+  }
+  .node.has-avatar img { width: 18px; height: 18px; object-fit: contain; display: block; pointer-events: none; }
+  .msg.to-me .node.has-avatar, .msg.unread .node.has-avatar, .msg.covered .node.has-avatar { background: var(--avatar-disc); }
+  .msg.unread .node.has-avatar { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--copper), 0 0 14px 2px var(--copper-glow); }
   /* Серия: то же «от кого → кому» подряд - карточки плотнее, вместо колена прямой отвод с малым узлом */
   .msg.cont { margin-top: -5px; }
   .msg.cont::before { top: 19px; height: 2px; -webkit-mask: none; mask: none; }
-  .msg.cont .node { left: calc(var(--px) - 4px); top: 16px; width: 8px; height: 8px; border: 0; border-radius: 2px; background: var(--dot); box-shadow: 0 0 0 2px var(--bg), 0 0 8px -1px var(--dot); }
+  .msg.cont .node:not(.has-avatar) { left: calc(var(--px) - 4px); top: 16px; width: 8px; height: 8px; border: 0; border-radius: 2px; background: var(--dot); box-shadow: 0 0 0 2px var(--bg), 0 0 8px -1px var(--dot); }
+  .msg.cont .node.has-avatar { width: 18px; height: 18px; left: calc(var(--px) - 9px); top: 11px; }
+  .msg.cont .node.has-avatar img { width: 12px; height: 12px; }
   .msg.cont.unread .node { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--copper), 0 0 14px 2px var(--copper-glow); }
   .msg.to-me { background: color-mix(in srgb, var(--copper) 5%, var(--glass-1)); border-color: color-mix(in srgb, var(--copper) 32%, var(--line)); }
   .msg.unread { border-color: var(--copper); box-shadow: 0 0 0 3px var(--copper-soft), 0 0 30px -12px var(--copper-glow), var(--shadow); }
@@ -807,17 +829,23 @@
   .msg.covered { box-shadow: none; background: color-mix(in srgb, var(--glass-1) 45%, transparent); border-color: color-mix(in srgb, var(--line) 60%, transparent); --dot: color-mix(in srgb, hsl(var(--hue) var(--dot-s) var(--dot-l)) 55%, var(--bg)); }
   .msg.covered.to-me { background: color-mix(in srgb, color-mix(in srgb, var(--copper) 5%, var(--glass-1)) 45%, transparent); border-color: color-mix(in srgb, color-mix(in srgb, var(--copper) 32%, var(--line)) 60%, transparent); }
   .msg.covered .text, .msg.covered time, .msg.covered .type, .msg.covered::before { opacity: .65; } /* кнопки имён, пары и выделения не бледнеют */
-  /* Как в мессенджере: агенты слева, свои (от оркестратора этого каталога) - справа. Узел остаётся на рейке, до карточки - прямой отвод */
-  .msg { max-width: min(860px, 82cqw); }
-  .msg.from-me { --shift: calc((min(100cqw, 1100px) - min(860px, 82cqw)) / 4); /* четверть свободного места до 1100px от рейки: свои заметно правее, но рядом с агентскими */ --px: calc(var(--cx) - 1px - var(--shift)); margin-left: var(--shift); }
-  .msg.from-me::before { top: 19px; width: calc(var(--shift) - var(--cx)); height: 2px; -webkit-mask: none; mask: none; }
+  /* Чат: агенты слева, свои (от оркестратора каталога) - справа. Узел на рейке, до пузыря - прямой отвод */
+  .msg.from-me {
+    margin-left: auto;
+    --shift: calc(100cqw - 100%); /* свободное место слева от пузыря */
+    --px: calc(var(--cx) - 1px - var(--shift));
+  }
+  .msg.from-me::before { top: 19px; width: max(0px, calc(var(--shift) - var(--cx))); height: 2px; -webkit-mask: none; mask: none; }
   .msg.from-me:not(.cont) .node { top: 14px; }
+  .msg.from-me:not(.cont) .node.has-avatar { top: 6px; }
   .msg.from-me.fresh { animation-name: land-mine; }
   /* Клик по карточке выделяет её под удаление; галочка - то же самое с клавиатуры */
   .msg { cursor: pointer; }
   /* Выделенная - как открытая вкладка: светлее стекло, приподнята тенью, слева ровная линия по скруглению карточки, без свечения;
      медная: выделенное и удаляют, и указывают агенту цитатой - красной осталась только кнопка «Удалить». Контура нет */
   .msg.picked { background: var(--glass-2); box-shadow: inset 2px 0 0 var(--copper), var(--shadow-lift); }
+  .msg.from-me.picked { box-shadow: inset -2px 0 0 var(--copper), var(--shadow-lift); }
+  .msg.from-me.unread { box-shadow: inset -2px 0 0 var(--copper), 0 0 0 3px var(--copper-soft), 0 0 30px -12px var(--copper-glow), var(--shadow); }
   /* Выделение видно всегда: появляющееся по наведению не находят. Ромб, как галочки: контур, выделено - медный ромб внутри; галка-иконка не нужна */
   .pick { position: relative; display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; margin-left: 4px; background: none; border: 0; border-radius: var(--r-sm); transition: transform .3s var(--ease); }
   .pick::before, .pick::after { content: ""; position: absolute; inset: 0; margin: auto; rotate: 45deg; transition: transform .25s var(--ease), border-color .2s, box-shadow .2s; }
@@ -843,11 +871,17 @@
      но без цвета типа: цифра справочная. Запуск ещё идёт - медная точка дышит */
   .usage { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; padding: 4px 8px; border-radius: 999px; font: 600 12px/1 var(--label); font-variant-numeric: tabular-nums; letter-spacing: .02em; text-box: trim-both cap alphabetic; color: var(--ink-soft); background: var(--glass-1); box-shadow: inset 0 0 0 1px var(--line), 0 1px 0 var(--edge) inset; cursor: help; white-space: pre; transition: color .2s, box-shadow .2s; }
   .usage .icon { width: 12px; height: 12px; }
+  .usage-model { font-weight: 500; opacity: .72; letter-spacing: 0; max-width: 14ch; overflow: hidden; text-overflow: ellipsis; }
   .usage:hover { color: var(--copper); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--copper) 45%, transparent), 0 0 12px -4px var(--copper-glow); }
+  .usage:hover .usage-model { opacity: .9; }
   .usage.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--copper); animation: blink 1.2s ease-in-out infinite; }
   .meta .usage + time { margin-left: 0; }
-  .who { --wh: 0; font: 600 14px var(--mono); background: none; border: 0; padding: 0; color: hsl(var(--wh) var(--wire-s) var(--wire-l)); transition: text-shadow .2s; }
-  .who:hover { text-decoration: underline; text-shadow: 0 0 10px hsl(var(--wh) var(--wire-s) var(--wire-l) / .5); }
+  .who { --wh: 0; font: 600 14px var(--mono); background: none; border: 0; padding: 0; color: var(--ink); transition: text-shadow .2s; display: inline-flex; align-items: center; gap: 6px; }
+  .who.tinted { color: hsl(var(--wh) var(--wire-s) var(--wire-l)); }
+  .who .who-disc { width: 20px; height: 20px; border-radius: 50%; background: var(--avatar-disc); display: inline-grid; place-items: center; flex: none; box-shadow: 0 0 0 1px color-mix(in srgb, var(--line) 80%, transparent); }
+  .who .who-disc img, .who .who-avatar { width: 14px; height: 14px; object-fit: contain; display: block; pointer-events: none; }
+  .who:hover { text-decoration: underline; text-shadow: 0 0 10px color-mix(in srgb, var(--ink) 20%, transparent); }
+  .who.tinted:hover { text-shadow: 0 0 10px hsl(var(--wh) var(--wire-s) var(--wire-l) / .5); }
   .arrow { display: inline-flex; color: var(--ink-soft); background: none; border: 0; border-radius: var(--r-xs); padding: 2px; transition: color .2s, background-color .2s, transform .3s var(--ease); }
   .arrow:hover, .arrow[aria-pressed="true"] { color: var(--copper); background: var(--copper-soft); }
   .arrow:hover { transform: translateX(2px); }
@@ -863,14 +897,53 @@
   .run-mark.run .clock { text-shadow: 0 0 10px color-mix(in srgb, var(--done) 60%, transparent); }
   .run-mark.bad { color: var(--danger); }
   .run-mark .clock { font-variant-numeric: tabular-nums; }
-  .live { flex-basis: 100%; margin: 0; padding: 6px 8px; max-height: 128px; overflow-y: auto; list-style: none; background: var(--field); border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 12px; font-weight: 400; line-height: 1.45; color: var(--ink); cursor: pointer; transition: max-height .3s var(--ease), border-color .2s; }
+  .live { flex-basis: 100%; margin: 0; padding: 6px 8px; max-height: 160px; overflow-y: auto; list-style: none; background: var(--field); border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 12px; font-weight: 400; line-height: 1.45; color: var(--ink); cursor: pointer; transition: max-height .3s var(--ease), border-color .2s; }
   .live:hover { border-color: var(--line-strong); }
   .live.open { max-height: 320px; }
   .live[hidden] { display: none; }
   .live li { overflow-wrap: anywhere; animation: fade-up .3s var(--ease); }
   .live li.tool { font-family: var(--mono); color: var(--ink-soft); }
   .live time { margin-right: 6px; font-family: var(--mono); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-  .agent .live-last { display: block; font: 12px/1.4 var(--mono); color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .agent .live-last { display: block; font: 12px/1.4 var(--mono); color: var(--done); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Полоса над композером: агент думает - детали хода остаются в карточке сообщения */
+  .live-bar {
+    display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding: 8px 12px;
+    border-radius: var(--r); background: color-mix(in srgb, var(--copper) 8%, var(--glass-1));
+    border: 1px solid color-mix(in srgb, var(--copper) 28%, var(--line));
+    font-size: 13px; line-height: 1.3; color: var(--ink);
+  }
+  .live-bar[hidden] { display: none !important; }
+  .live-bar-think { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+  .live-bar-faces { display: inline-flex; align-items: center; gap: 4px; }
+  .live-bar-face {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--avatar-disc);
+    display: inline-grid; place-items: center; flex: none;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--line) 70%, transparent);
+  }
+  .live-bar-face img { width: 14px; height: 14px; object-fit: contain; display: block; }
+  .live-bar-face.letter { font: 600 11px var(--mono); color: var(--ink-soft); }
+  .live-bar-think > .icon {
+    width: 16px; height: 16px; color: var(--copper); flex: none;
+    animation: think-hourglass 2s ease-in-out infinite;
+    transform-origin: center;
+  }
+  .live-bar-label { font: 600 13px var(--body); color: var(--ink); letter-spacing: .01em; }
+  .live-dots { display: inline-flex; width: 1.1em; margin-left: 1px; }
+  .live-dots i {
+    font-style: normal; opacity: 0; animation: think-dot 1.2s ease-in-out infinite;
+  }
+  .live-dots i:nth-child(2) { animation-delay: .2s; }
+  .live-dots i:nth-child(3) { animation-delay: .4s; }
+  @keyframes think-hourglass {
+    0%, 15% { transform: rotate(0deg); }
+    40% { transform: rotate(180deg); }
+    55%, 70% { transform: rotate(180deg); }
+    95%, 100% { transform: rotate(360deg); }
+  }
+  @keyframes think-dot {
+    0%, 20% { opacity: 0; }
+    40%, 100% { opacity: 1; }
+  }
   .run-mark .ghost { min-height: var(--h-sm); padding: 0 10px; font-weight: 400; color: var(--ink); }
   .btw-switch { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); cursor: pointer; }
   /* Переключатели у формы - на одно сообщение и легко проглядеть: ромб крупнее обычной галочки */
@@ -999,7 +1072,7 @@
   /* Идёт диктовка: поле, куда ложится текст. Рамка и ровное свечение, без пульса - запись бывает долгой */
   textarea.listening, input.listening { border-color: var(--copper) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--copper) 35%, transparent), 0 0 24px -6px var(--copper-glow) !important; }
 
-  /* Чипы над полем: вложения / цитаты / btw / роль - полоса прячется, если всё hidden */
+  /* Чипы над полем: вложения / цитаты / btw - полоса прячется, если всё hidden */
   .compose-extras {
     display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
     min-width: 0;
@@ -1016,6 +1089,21 @@
   .compose-opt input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
   .compose-opt input[type="checkbox"]::before { width: 12px; height: 12px; border-radius: 3px; }
   .compose-opt input[type="checkbox"]::after { width: 6px; height: 6px; }
+  /* Самоправка роли - в строке compose-meta; иконка чуть отстаёт от подписи */
+  .compose-evolve {
+    display: inline-flex; align-items: center; gap: 4px;
+    flex: none; min-width: 0;
+  }
+  .compose-evolve[hidden] { display: none !important; }
+  .compose-evolve .compose-opt { padding-right: 8px; }
+  .compose-evolve-info {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; padding: 0; margin: 0;
+    border: 0; border-radius: 50%; background: transparent;
+    color: var(--ink-soft); cursor: help; flex: none;
+  }
+  .compose-evolve-info:hover { color: var(--copper); background: var(--tap); }
+  .compose-evolve-info .icon { width: 13px; height: 13px; opacity: .9; }
 
   /* Основная строка ввода - как пузырь Telegram */
   .compose-shell {
@@ -1794,9 +1882,8 @@
     .dialog-history li { flex-wrap: wrap; gap: 2px 8px; }
     .dialog-history .title { flex-basis: 100%; }
     .dialog-history small { flex: 1; }
-    /* узкой ленте - сдвиг меньше, иначе шапка карточки переносится */
+    /* узкой ленте пузыри шире, выравнивание то же: агенты слева, свои справа */
     .msg { max-width: 90cqw; }
-    .msg.from-me { --shift: 6cqw; }
     :root { --h-sm: 32px; --h: 36px; --h-lg: 40px; /* пальцем в 28px не попасть */ --gutter: 12px; --rail-x: 13px; --feed-left: 44px; --tap-curve: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='20'%3E%3Cpath d='M0 2C18 2 10 17 30 17' fill='none' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E"); }
     /* Список агентов - поверх ленты, а не над ней: иначе он выдавливает ленту в ноль и форма уезжает за экран */
     .layout { grid-template-columns: minmax(0, 1fr); }
@@ -1872,6 +1959,7 @@
     --accent: #2aabee;
     --chat-mine: #effdde;
     --chat-theirs: #ffffff;
+    --avatar-disc: #ffffff;
     --rail-w: 1px;
     --feed-left: 48px;
   }
@@ -1902,6 +1990,7 @@
     --scrim: #00000099;
     --chat-mine: #2b5278;
     --chat-theirs: #182533;
+    --avatar-disc: #1e2a36;
   }
 
   /* Плоский режим: без пятен и видео. Цветной CSS-фон и видео снова включают их ниже. */
@@ -2201,6 +2290,11 @@
     rotate: 0deg !important; border-radius: 50% !important;
     box-shadow: none !important;
   }
+  .agent .avatar {
+    width: 20px !important; height: 20px !important; margin-top: 0 !important;
+    border-radius: 5px !important;
+    box-shadow: none !important;
+  }
   .agent .badge {
     background: var(--copper) !important;
     box-shadow: none !important;
@@ -2213,6 +2307,7 @@
     box-shadow: none !important;
   }
   .agent.running .wire { animation: none !important; outline: 2px solid color-mix(in srgb, var(--done) 50%, transparent); outline-offset: 2px; }
+  .agent.running .avatar { animation: none !important; outline: 2px solid color-mix(in srgb, var(--done) 50%, transparent); outline-offset: 2px; }
   .agent-edit {
     color: var(--ink-soft) !important;
     border-radius: var(--r-sm) !important;
@@ -2393,6 +2488,7 @@
   .msg {
     margin: 0 0 6px !important;
     padding: 8px 11px 9px !important;
+    width: fit-content !important;
     max-width: min(720px, 78cqw) !important;
     border: 0 !important;
     border-radius: 14px 14px 14px 4px !important;
@@ -2415,16 +2511,28 @@
     background: var(--dot) !important;
     box-shadow: 0 0 0 2px var(--bg) !important;
   }
+  .node.has-avatar {
+    width: 24px !important; height: 24px !important;
+    left: calc(var(--px) - 12px) !important;
+    background: var(--avatar-disc) !important;
+    box-shadow: 0 0 0 2px var(--bg) !important;
+  }
+  .node.has-avatar img { width: 16px !important; height: 16px !important; }
   .msg.unread .node,
   .msg.cont.unread .node {
     box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--copper) !important;
   }
   .msg.cont { margin-top: -2px !important; }
-  .msg.cont .node {
+  .msg.cont .node:not(.has-avatar) {
     left: calc(var(--px) - 3px) !important;
     width: 6px !important; height: 6px !important;
     box-shadow: 0 0 0 2px var(--bg) !important;
   }
+  .msg.cont .node.has-avatar {
+    width: 16px !important; height: 16px !important;
+    left: calc(var(--px) - 8px) !important;
+  }
+  .msg.cont .node.has-avatar img { width: 11px !important; height: 11px !important; }
   .msg.to-me {
     background: color-mix(in srgb, var(--copper) 8%, var(--chat-theirs)) !important;
     border: 0 !important;
@@ -2433,6 +2541,9 @@
     border: 0 !important;
     box-shadow: inset 2px 0 0 var(--copper) !important;
   }
+  .msg.from-me.unread {
+    box-shadow: inset -2px 0 0 var(--copper) !important;
+  }
   .msg.covered {
     opacity: .72;
     box-shadow: none !important;
@@ -2440,6 +2551,7 @@
     border: 0 !important;
   }
   .msg.from-me {
+    margin-left: auto !important;
     border-radius: 14px 14px 4px 14px !important;
     background: var(--chat-mine) !important;
   }
@@ -2450,6 +2562,7 @@
   }
   .msg.from-me.picked {
     background: color-mix(in srgb, var(--copper) 16%, var(--chat-mine)) !important;
+    box-shadow: inset -2px 0 0 var(--copper) !important;
   }
   .msg.fresh { animation: fade-up .3s var(--ease) !important; }
   .msg.fresh .node { animation: none !important; }
@@ -2900,7 +3013,7 @@
   <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16l-6.5 7.5V19l-3 1.5v-8L4 5z"/></symbol>
   <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
   <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><path d="M12 18v4"/><path d="M8 22h8"/></symbol>
-  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 21h20L12 3z"/><path d="M12 10v5"/><path d="M12 18h.01"/></symbol>
   <symbol id="i-github" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 2C6.48 2 2 6.58 2 12.26c0 4.52 2.87 8.35 6.84 9.71.5.1.68-.22.68-.48 0-.24-.01-.87-.01-1.7-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.55-1.14-4.55-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.73 0 0 .84-.27 2.75 1.05A9.3 9.3 0 0 1 12 6.84c.85.004 1.71.12 2.51.35 1.91-1.32 2.75-1.05 2.75-1.05.55 1.42.2 2.47.1 2.73.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.8-4.57 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.59.69.49A10.03 10.03 0 0 0 22 12.26C22 6.58 17.52 2 12 2z"/></symbol>
   <symbol id="i-telegram" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M21.8 4.3 2.9 11.5c-1.3.5-1.3 1.2-.2 1.5l4.8 1.5 1.9 5.7c.2.7.4.9 1 .9.6 0 .8-.3 1.1-.6l2.8-2.7 5.6 4.1c1 .5 1.7.3 2-.9L23.2 5.8c.3-1.3-.4-1.9-1.4-1.5z"/></symbol>
   <symbol id="i-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
@@ -2972,6 +3085,7 @@
     </div>
     <div class="feed-wrap" id="wrap"><ol class="feed" id="feed" aria-live="polite"></ol></div>
     <div class="composer-dock" id="composerDock">
+    <div class="live-bar" id="liveBar" hidden role="status" aria-live="polite" aria-label="Думает…"></div>
     <form id="composer">
       <button class="to-bottom" id="toBottom" type="button" hidden>Новые сообщения ↓</button>
 
@@ -2981,7 +3095,6 @@
         <span class="filechip refs" id="refsChip" hidden title="Выделенные в ленте сообщения уйдут агенту цитатами вместе с этим сообщением"></span>
         <span id="picked"></span>
         <label class="compose-opt" id="btwWrap" hidden title="Агент сейчас работает. Обычное сообщение дождётся конца, btw - дойдёт посреди хода"><input type="checkbox" id="btw"><span>btw</span></label>
-        <label class="compose-opt" id="evolveWrap" hidden title="После DONE агент предложит правку своей роли - на диск только по «Сохранить»"><input type="checkbox" id="evolve"><span>роль</span></label>
       </div>
 
       <!-- Одна оболочка: инструменты · поле · отправка -->
@@ -3006,6 +3119,10 @@
       <div class="compose-meta">
         <label class="compose-pill" title="Кому"><select id="to" required aria-label="Кому"></select></label>
         <label class="compose-pill" title="Тип"><select id="type" aria-label="Тип"></select></label>
+        <div class="compose-evolve" id="evolveWrap" hidden>
+          <label class="compose-opt"><input type="checkbox" id="evolve"><span>Правка роли</span></label>
+          <button type="button" class="compose-evolve-info" data-tip="Когда агент сдаст задачу (DONE), он в той же сессии разберёт, как работал, и предложит правку своей роли: нужное допишет, лишнее уберёт. Черновик с diff откроется в редакторе роли - на диск пойдёт только по «Сохранить»" aria-label="Что делает «Правка роли»"><svg class="icon" aria-hidden="true"><use href="#i-info"/></svg></button>
+        </div>
         <small id="fromHint"></small>
       </div>
       <span id="attachHint" hidden></span>
@@ -3549,9 +3666,21 @@ function agentButton(agent, fresh, me) {
   const load = L.tokensOf(fresh.get(agent.key) || []);
   const status = L.agentStatus(agent, load);
   const replies = (me && me.repliesBy && me.repliesBy[agent.key]) || 0;
+  // Ошибки в списке - только иконка; полный текст остаётся в отметке запуска на сообщении
+  const badNotes = status.notes.filter((n) => n.tone === 'bad');
+  const listNotes = status.notes.filter((n) => n.tone !== 'bad');
+  const errTip = badNotes.map((n) => n.title || n.text).filter(Boolean).join('\n\n');
+  const errIcon = badNotes.length
+    ? el('span', { className: 'agent-err', title: errTip || tr('Ошибка агента'), role: 'img', ariaLabel: tr('Ошибка агента') }, icon('alert'))
+    : '';
+  const face = agent.icon
+    ? el('img', { className: 'avatar', src: `/avatars/${agent.icon}.png`, alt: '', width: 22, height: 22, draggable: false })
+    : el('span', { className: 'wire' });
   const button = el('button', { type: 'button', className: `agent${agent.registered ? '' : ' off'}${agent.alive ? '' : ' gone'}${status.busy ? ' running' : ''}`, title: agent.description ? `${agent.description}\n${agent.where}` : agent.where },
-    el('span', { className: 'wire' }),
-    el('span', {}, el('span', { className: 'name' }, agent.name), el('span', { className: 'kind' }, status.label, ...status.notes.map((n) => el('span', { className: `note ${n.tone}`, title: n.title || '' }, n.text)), status.busy ? liveLastNode(agent.key) : '')),
+    face,
+    el('span', {},
+      el('span', { className: 'name' }, el('span', { className: 'agent-name' }, agent.name), errIcon),
+      el('span', { className: 'kind' }, status.label, ...listNotes.map((n) => el('span', { className: `note ${n.tone}`, title: n.title || '' }, n.text)), status.busy ? liveLastNode(agent.key) : '')),
     // Медный - ответы пользователю: открой диалог, и они прочитаны. У своего оркестратора бейджа нет: в его ящике эти же ответы
     replies ? el('span', { className: 'badge', title: tr('тебе ответил - открой диалог, и прочитано') }, String(replies)) : '',
     agent.unread && !status.mine ? el('span', { className: 'badge wait', title: tr('лежит в его inbox') }, String(agent.unread)) : '');
@@ -4076,10 +4205,22 @@ function scheduleRead() {
 const hl = (text) => L.splitByQuery(text, filters.q).map((part) => (part.hit ? el('mark', {}, part.text) : part.text));
 
 function whoButton(name, key, kind) {
-  const button = el('button', { type: 'button', className: 'who', title: tr('Показать только его переписку') }, ...hl(name));
+  const iconN = ((state.agents || []).find((a) => a.key === key) || {}).icon || 0;
+  const face = iconN
+    ? el('span', { className: 'who-disc' }, el('img', { src: `/avatars/${iconN}.png`, alt: '', width: 14, height: 14, draggable: false }))
+    : '';
+  const button = el('button', { type: 'button', className: `who${iconN ? '' : ' tinted'}`, title: tr('Показать только его переписку') }, face, ...hl(name));
   button.style.setProperty('--wh', hueOf(name, kind));
   button.addEventListener('click', () => selectAgents([key]));
   return button;
+}
+
+/** Узел на рейке: иконка отправителя в диске темы, иначе цветной ромб. */
+function railNode(fromKey) {
+  const iconN = ((state.agents || []).find((a) => a.key === fromKey) || {}).icon || 0;
+  if (!iconN) return el('span', { className: 'node' });
+  return el('span', { className: 'node has-avatar' },
+    el('img', { src: `/avatars/${iconN}.png`, alt: '', width: 18, height: 18, draggable: false }));
 }
 
 /** Стрелка между именами - вход в диалог этой пары одним кликом: там вес переписки и «Сжать диалог». Повторный клик снимает выбор. */
@@ -4167,8 +4308,11 @@ function textNode(m) {
 function usageNode(m) {
   const u = L.messageUsage(m, state.agents);
   if (!u) return '';
-  const node = el('span', { className: `usage${u.live ? ' live' : ''}`, title: u.title }, icon('bolt'), u.text);
-  node.setAttribute('aria-label', u.title.split('\n')[0]);
+  const node = el('span', { className: `usage${u.live ? ' live' : ''}`, title: u.title },
+    icon('bolt'),
+    u.text,
+    u.model ? el('span', { className: 'usage-model', title: tr('модель: {model}', { model: u.model }) }, u.model) : '');
+  node.setAttribute('aria-label', u.title.split('\n')[0] + (u.model ? ` · ${u.model}` : ''));
   return node;
 }
 
@@ -4177,10 +4321,10 @@ function messageNode(m, { fresh, unread, covered, cont, me }) {
   const mine = Boolean(me && m.fromKey === me.key);
   const pick = el('button', { type: 'button', className: 'pick', title: tr('Выделить, чтобы удалить'), ariaLabel: tr('Выделить сообщение') }, icon('check'));
   const node = el('li', { className: `msg${fresh ? ' fresh' : ''}${toMe ? ' to-me' : ''}${mine ? ' from-me' : ''}${unread ? ' unread' : ''}${covered ? ' covered' : ''}${cont ? ' cont' : ''}` },
-    el('span', { className: 'node' }),
+    railNode(m.fromKey),
     el('div', { className: 'meta' },
       whoButton(m.from, m.fromKey, m.fromKind), pairButton(m), whoButton(m.to, m.toKey, m.toKind),
-      el('span', { className: `type ${m.type}`, title: typeNote(m.type) }, m.type),
+      el('span', { className: `type ${m.type}`, title: typeNote(m.type) }, typeLabel(m.type)),
       m.from === 'schedule' ? el('span', { className: 'sched-tag', title: tr('Отчёт запуска по расписанию') }, tr('по расписанию')) : '',
       m.btw ? el('span', { className: 'btw-tag', title: tr('Вброшено агенту посреди работы, в inbox не лежало') }, 'btw') : '',
       m.evolve ? el('span', { className: 'btw-tag', title: tr('После DONE агент разберёт свою работу и предложит правку роли') }, tr('самоправка')) : '',
@@ -4224,13 +4368,16 @@ function runMarkNode(mark) {
     });
     node.append(button);
   }
-  if (mark.tone === 'run') node.append(fillLive(el('ul', { className: 'live', title: tr('Что агент делает прямо сейчас. Клик - весь ход') }), mark.key));
+  if (mark.tone === 'run') {
+    state.liveOpen.add(mark.key); // пока работает - ход раскрыт: пользователь видит действия без лишнего клика
+    node.append(fillLive(el('ul', { className: 'live', title: tr('Что агент делает прямо сейчас. Клик - свернуть или раскрыть') }), mark.key));
+  }
   return node;
 }
 
 // ---------- живой ход работающего агента (событие live) ----------
 
-const LIVE_SHORT = 6; // строк в свёрнутом блоке; раскрытый - всё, что прислал сервер
+const LIVE_SHORT = 8; // строк в свёрнутом блоке; раскрытый - всё, что прислал сервер
 
 /** Блок под отметкой «работает»: последние строки хода, тулы моноширинно. Раскрытие живёт в state.liveOpen - переживает перерисовку. */
 function fillLive(node, key) {
@@ -4261,12 +4408,42 @@ function liveLastNode(key) {
   return node;
 }
 
+/** Полоса над композером: «Думает…» - детали хода остаются в блоке под сообщением. */
+function renderLiveBar() {
+  const bar = $('liveBar');
+  if (!bar) return;
+  const keys = Object.keys(state.live || {}).filter((key) => L.liveLast(state.live[key]));
+  bar.hidden = !keys.length;
+  if (!keys.length) {
+    bar.replaceChildren();
+    return;
+  }
+  const faces = keys.map((key) => {
+    const agent = state.agents.find((a) => a.key === key) || {};
+    const name = agent.name || String(key).split('@')[0];
+    if (agent.icon) {
+      return el('span', { className: 'live-bar-face', title: name },
+        el('img', { src: `/avatars/${agent.icon}.png`, alt: '', width: 14, height: 14, draggable: false }));
+    }
+    return el('span', { className: 'live-bar-face letter', title: name }, (name || '?').slice(0, 1).toUpperCase());
+  });
+  const dots = el('span', { className: 'live-dots', ariaHidden: true },
+    el('i', {}, '.'), el('i', {}, '.'), el('i', {}, '.'));
+  bar.replaceChildren(
+    el('div', { className: 'live-bar-think' },
+      el('span', { className: 'live-bar-faces' }, ...faces),
+      icon('hourglass'),
+      el('span', { className: 'live-bar-label' }, tr('Думает'), dots)));
+}
+
 /** Событие live - точечно: блоки под отметками и строки в списке, без renderFeed (он пересобрал бы всю ленту на каждую строку потока). */
 function applyLive(live) {
   state.live = live && typeof live === 'object' ? live : {};
   for (const key of state.liveOpen) if (!state.live[key]) state.liveOpen.delete(key);
+  for (const key of Object.keys(state.live)) state.liveOpen.add(key);
   document.querySelectorAll('.live[data-key]').forEach((node) => fillLive(node, node.dataset.key));
   document.querySelectorAll('.live-last[data-key]').forEach((node) => node.replaceWith(liveLastNode(node.dataset.key)));
+  renderLiveBar();
 }
 
 const tickClocks = () => document.querySelectorAll('.run-mark .clock').forEach((c) => (c.textContent = L.elapsed(Date.now() - Number(c.dataset.since))));
@@ -4742,7 +4919,7 @@ async function load() {
   Object.assign(state, { access: data.access || state.access, types: data.types, maxFiles: data.maxFiles || state.maxFiles, maxFileBytes: data.maxFileBytes || state.maxFileBytes, cursorModels: data.cursorModels || state.cursorModels || [] });
   L.setThresholds({ showLoadFrom: data.showLoadFrom, heavyTokens: data.heavyTokens }); // настройки проекта - пороги веса переписки, дефолт остаётся, пока не пришло число
   renderTypes();
-  state.live = data.live || {};
+  applyLive(data.live || {});
   applyAgents(data, true);
   // Ленту заменяем, а не доливаем: удалённое из журнала иначе жило бы во вкладке до F5. Пришедшее по SSE, пока шёл запрос, кладём поверх
   replaceFeed(data, late);

@@ -4,9 +4,12 @@
  * Cursor на машине разработки не стоял. Отличия от claude, которые Bus Cursor обходит:
  *   - нет --agent: роль и задание едут файлом в каталоге агента, в аргумент - короткое «прочитай файл» (кавычки и лимит командной строки Windows);
  *   - нет входа stream-json: вброса посреди хода (btw) нет, сообщение ждёт следующего круга в inbox;
- *   - в потоке нет usage, стоимости и лимитов аккаунта: расход - оценка по объёму потока (≈4 символа на токен), окна контекста нет;
+ *   - в потоке нет usage, стоимости и лимитов аккаунта: расход - оценка по промпту + тексту/тулам хода (≈4 символа на токен), не по JSON stream;
+ *   - модель для биллинга: явный --model id → пул API; Auto в форме → --model auto (пул Auto), как в IDE.
+ *     Без --model CLI подставляет дефолт аккаунта (часто Opus) и списывает API - поэтому auto передаём явно.
+ *     Имя из потока при Auto - кого Router выбрал; в расход пишем Auto, routed - в подсказку;
  *   - сессии на диске официально не описаны: --resume пробуем по id из system/init, не проверяя файл.
- * Возвращает то же, что wake.runClaude: { ok, ms, tokens, context, window, usage, cost, reason, report, sessionId }.
+ * Возвращает то же, что wake.runClaude: { ok, ms, tokens, context, window, usage, cost, reason, report, sessionId, model }.
  */
 
 const fs = require('fs');
@@ -83,7 +86,7 @@ function promptFile(cwd, text, role) {
   }
   const file = path.join(dir, `${Date.now().toString(36)}-${process.pid}-${Math.random().toString(36).slice(2, 6)}.md`);
   const head = role ? ['# Твоя роль', '', role.trim(), '', '# Задание', ''] : [];
-  fs.writeFileSync(file, [...head, text].join('\n'));
+  fs.writeFileSync(file, [...head, text].join('\n'), 'utf8');
   const rel = path.relative(cwd, file).split(path.sep).join('/');
   return { file, arg: `"Прочитай файл ${rel} целиком и выполни задание из него. Файл одноразовый, не правь и не удаляй его."` };
 }
@@ -97,14 +100,22 @@ function run({ cwd, agent = null, role = '', model = null, prompt: text, timeout
   return new Promise((resolve) => {
     const started = Date.now();
     const { file, arg } = promptFile(cwd, text, resume ? '' : role);
+    const promptBytes = (() => {
+      try { return fs.statSync(file).size; } catch { return Buffer.byteLength(String(text || ''), 'utf8'); }
+    })();
+    // Как в IDE: конкретная модель → --model id (пул API); Auto → явный --model auto (пул Auto).
+    // Без флага CLI НЕ равен Auto: подставляет дефолт аккаунта (часто Opus) и списывает API.
+    const requested = typeof model === 'string' && model.trim() ? model.trim() : '';
+    const cliModel = requested || 'auto';
+    const billingModel = requested || 'Auto';
     const finishEarly = (reason) => {
       fs.rmSync(file, { force: true });
-      resolve({ ok: false, ms: Date.now() - started, tokens: 0, context: 0, window: 0, usage: { tokens: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0 }, cost: 0, reason, report: '', sessionId: '' });
+      resolve({ ok: false, ms: Date.now() - started, tokens: 0, context: 0, window: 0, usage: { tokens: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0 }, cost: 0, reason, report: '', sessionId: '', model: billingModel });
     };
     const cmd = resolveCommand();
     if (!cmd) return finishEarly(missingHint());
     const resumeArg = resume && SESSION_ID.test(resume) ? ['--resume', resume] : [];
-    const args = [...(readonly ? READONLY_ARGS : ARGS), ...resumeArg, ...(model ? ['--model', `"${model}"`] : []), arg];
+    const args = [...(readonly ? READONLY_ARGS : ARGS), ...resumeArg, '--model', `"${cliModel}"`, arg];
     // CLAUDECODE снимаем: раннер могли поднять из сессии Claude, а по этой переменной send решает, что чат сам поднимет агента (wake:).
     // BUS_ORCHESTRATOR не ставим: роль оркестратора headless-задаче кладёт в промпт сам вызывающий (role), хук sessionStart её не дублирует
     const env = { ...process.env, BUS_WAKE: '1', TG_LISTENER_RUN: '1', BUS_RUN: agent && RUN_ID.test(runId) ? `${agent}:${runId}` : '', BUS_ORCHESTRATOR: '' };
@@ -118,12 +129,13 @@ function run({ cwd, agent = null, role = '', model = null, prompt: text, timeout
     let tail = '';
     let stderr = '';
     let buffer = '';
-    let chars = 0;
+    let contentChars = 0; // текст и тулы хода - не весь JSON stream (иначе ≈ток. раздуваются в 2–3 раза)
     let timedOut = false;
     let silent = false;
     let sessionId = '';
     let final = null;
     let lastText = '';
+    let routedModel = ''; // кого Router взял при Auto - только для подсказки, биллинг = billingModel
     let reported = 0;
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
@@ -134,12 +146,16 @@ function run({ cwd, agent = null, role = '', model = null, prompt: text, timeout
     };
     const timers = [setTimeout(kill('timeout'), timeoutMs)];
     const firstEvent = setTimeout(kill('silent'), FIRST_EVENT_MS);
-    const estimate = () => Math.round(chars / CHARS_PER_TOKEN);
-    const usage = () => ({ tokens: estimate(), input: 0, cacheWrite: 0, cacheRead: 0, output: 0 });
+    const estimate = () => Math.round((promptBytes + contentChars) / CHARS_PER_TOKEN);
+    const usage = () => ({ tokens: estimate(), input: 0, cacheWrite: 0, cacheRead: 0, output: 0, estimated: true });
     const report = (force = false) => {
       if (!onContext || (!force && Date.now() - reported < USAGE_EVERY_MS)) return;
       reported = Date.now();
-      onContext({ tokens: 0, window: 0, usage: usage() }); // окна нет - вкладка диалога его не покажет, расход запуска - оценкой
+      onContext({ tokens: 0, window: 0, usage: usage(), model: billingModel, ...(routedModel && routedModel !== billingModel ? { routed: routedModel } : {}) });
+    };
+    const noteRouted = (value) => {
+      const name = String(value || '').trim();
+      if (name && !routedModel) routedModel = name.slice(0, 60);
     };
 
     function onEvent(e) {
@@ -148,16 +164,28 @@ function run({ cwd, agent = null, role = '', model = null, prompt: text, timeout
         sessionId = e.session_id;
         if (onStart) onStart(sessionId);
       }
+      if (e.type === 'system' && e.subtype === 'init') noteRouted(e.model);
+      if (e.type === 'assistant' && e.message) {
+        noteRouted(e.message.model);
+        const body = textOf(e);
+        if (body) contentChars += body.length;
+        if (Array.isArray(e.message.content)) {
+          for (const b of e.message.content) {
+            if (b && b.type === 'tool_use') contentChars += Buffer.byteLength(JSON.stringify(b.input || {}), 'utf8');
+          }
+        }
+      }
+      if (e.type === 'tool_call' && e.tool_call) contentChars += Buffer.byteLength(JSON.stringify(e.tool_call), 'utf8');
       if (onLive) for (const entry of liveEntries(e, cwd)) onLive(entry);
       if (e.type === 'assistant' && e.message && textOf(e).trim()) lastText = textOf(e).trim();
       report();
       if (e.type !== 'result') return;
+      noteRouted(e.model);
       final = e;
       timers.push(setTimeout(kill(), EXIT_WAIT_MS)); // -p выходит сам после итога; не вышел - добиваем
     }
 
     child.stdout.on('data', (chunk) => {
-      chars += chunk.length;
       tail = (tail + chunk).slice(-2000);
       buffer += chunk;
       for (let at = buffer.indexOf('\n'); at >= 0; at = buffer.indexOf('\n')) {
@@ -177,7 +205,7 @@ function run({ cwd, agent = null, role = '', model = null, prompt: text, timeout
       report(true);
       resolve(result);
     };
-    child.on('error', (e) => finish({ ok: false, ms: Date.now() - started, tokens: 0, context: 0, window: 0, usage: usage(), cost: 0, reason: /ENOENT|not found/i.test(e.message) ? missingHint() : `Cursor (${cmd}) не запустился: ${e.message}`, report: '', sessionId }));
+    child.on('error', (e) => finish({ ok: false, ms: Date.now() - started, tokens: 0, context: 0, window: 0, usage: usage(), cost: 0, reason: /ENOENT|not found/i.test(e.message) ? missingHint() : `Cursor (${cmd}) не запустился: ${e.message}`, report: '', sessionId, model: billingModel, ...(routedModel && routedModel !== billingModel ? { routed: routedModel } : {}) }));
     child.on('close', (code) => {
       if (!final && buffer.trim()) {
         try {
@@ -188,6 +216,7 @@ function run({ cwd, agent = null, role = '', model = null, prompt: text, timeout
         }
       }
       const result = final || {};
+      noteRouted(result.model);
       // result.result у Cursor - склейка всех реплик хода; отчёт - последняя реплика, как у claude
       const text = lastText || (typeof result.result === 'string' ? result.result.trim().slice(-2000) : '');
       const ok = !timedOut && !silent && Boolean(final) && !result.is_error;
@@ -199,7 +228,11 @@ function run({ cwd, agent = null, role = '', model = null, prompt: text, timeout
           : missingFromOutput(stderr || raw, code)
             ? missingHint()
             : `Cursor вернул ошибку (код ${code}): ${raw || 'пустой ответ'}`;
-      finish({ ok, ms: Date.now() - started, tokens: estimate(), context: 0, window: 0, usage: usage(), cost: 0, reason: ok ? '' : why, report: text, sessionId });
+      finish({
+        ok, ms: Date.now() - started, tokens: estimate(), context: 0, window: 0, usage: usage(), cost: 0,
+        reason: ok ? '' : why, report: text, sessionId, model: billingModel,
+        ...(routedModel && routedModel !== billingModel ? { routed: routedModel } : {}),
+      });
     });
     child.stdin.on('error', () => {});
     child.stdin.end();

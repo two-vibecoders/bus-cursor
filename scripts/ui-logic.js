@@ -539,22 +539,35 @@
 
   /**
    * Расход фонового запуска, из которого ушло сообщение агента (m.run → agent.runs, wake.runs). Цифра - без чтения из кэша, как у отметки запуска.
-   * → { text: «≈23.3к», title, live } или null - сообщение не из фонового запуска (сессия, UI, агент через Agent) или запуск уже забыт.
+   * → { text, model, title, live, estimated } или null - сообщение не из фонового запуска или запуск уже забыт.
    */
   function messageUsage(m, agents) {
     const agent = m && m.run && (agents || []).find((a) => a.key === m.fromKey);
     const u = agent && agent.runs && agent.runs[m.run];
     if (!u || !Number.isFinite(u.tokens)) return null;
+    const estimated = Boolean(u.estimated) || (!(u.input || u.cacheWrite || u.output) && u.tokens > 0);
+    const model = typeof u.model === 'string' && u.model.trim() ? u.model.trim() : (estimated ? 'Auto' : '');
+    const routed = typeof u.routed === 'string' && u.routed.trim() && u.routed.trim() !== model ? u.routed.trim() : '';
+    const auto = /^auto$/i.test(model);
     const lines = [
       tr('Расход фонового запуска агента: ≈{n} ток.', { n: short(u.tokens) }) + (u.live ? tr(' · агент ещё работает') : ''),
-      tr('вход {input} · запись в кэш {write} · выход {output}', { input: short(u.input || 0), write: short(u.cacheWrite || 0), output: short(u.output || 0) }),
-      tr('чтение из кэша {n} - почти бесплатно, в цифру не входит', { n: short(u.cacheRead || 0) }),
     ];
+    if (model) {
+      lines.push(tr('модель: {model}', { model }));
+      lines.push(auto ? tr('пул: Auto (как Auto в Cursor IDE)') : tr('пул: API (конкретная модель, как в Cursor IDE)'));
+    }
+    if (routed) lines.push(tr('Cursor выбрал: {model}', { model: routed }));
+    if (estimated) {
+      lines.push(tr('Оценка Cursor CLI: промпт + текст/тулы хода ≈4 символа на токен. В потоке нет API usage - реальный расход модели обычно другой.'));
+    } else {
+      lines.push(tr('вход {input} · запись в кэш {write} · выход {output}', { input: short(u.input || 0), write: short(u.cacheWrite || 0), output: short(u.output || 0) }));
+      lines.push(tr('чтение из кэша {n} - почти бесплатно, в цифру не входит', { n: short(u.cacheRead || 0) }));
+    }
     if (u.context > 0 && u.window > 0) lines.push(tr('контекст ≈{n} из {w} ({pct}%)', { n: short(u.context), w: short(u.window), pct: Math.min(100, Math.round((u.context / u.window) * 100)) }));
     const tail = [u.ms >= 1000 ? tr('{sec} с', { sec: Math.round(u.ms / 1000) }) : '', u.cost > 0 ? `$${u.cost.toFixed(u.cost < 0.1 ? 3 : 2)}` : ''].filter(Boolean);
     if (tail.length) lines.push(tail.join(' · '));
     lines.push(tr('Несколько сообщений из одного запуска показывают его общий расход'));
-    return { text: `≈${short(u.tokens)}`, title: lines.join('\n'), live: Boolean(u.live) };
+    return { text: `≈${short(u.tokens)}`, model, title: lines.join('\n'), live: Boolean(u.live), estimated };
   }
 
   const AGENT_NAME = /^[a-z0-9][a-z0-9-]{0,30}$/; // то же правило, что NAME и RESERVED в bus.js

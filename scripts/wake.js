@@ -543,28 +543,34 @@ function usageWriter(box, dialogs, runId = '', started = Date.now()) {
     const at = Date.now();
     try {
       if (keys.length && pending.tokens > 0) keepFresh(contextFile(box), Object.fromEntries(keys.map((key) => [key, { tokens: pending.tokens, window: pending.window, at }])), CONTEXT_KEEP);
-      if (RUN_ID.test(runId) && pending.usage) keepFresh(runsFile(box), { [runId]: { ...pending.usage, context: pending.tokens, window: pending.window, cost: pending.cost || 0, ms: at - started, at, ...(final ? {} : { live: true }) } }, RUNS_KEEP);
+      if (RUN_ID.test(runId) && pending.usage) keepFresh(runsFile(box), { [runId]: { ...pending.usage, context: pending.tokens, window: pending.window, cost: pending.cost || 0, ms: at - started, at, ...(pending.model ? { model: pending.model } : {}), ...(pending.routed ? { routed: pending.routed } : {}), ...(final ? {} : { live: true }) } }, RUNS_KEEP);
     } catch {
       // украшение UI: сбой записи не валит подъём
     }
     pending = null;
     last = at;
   };
-  let seen = { tokens: 0, window: 0, usage: null }; // последнее из потока - pending после записи обнуляется
+  let seen = { tokens: 0, window: 0, usage: null, model: '', routed: '' }; // последнее из потока - pending после записи обнуляется
   const update = (ctx) => {
-    seen = { tokens: ctx.tokens, window: ctx.window, usage: ctx.usage };
+    seen = {
+      tokens: ctx.tokens, window: ctx.window, usage: ctx.usage,
+      model: typeof ctx.model === 'string' ? ctx.model : seen.model,
+      routed: typeof ctx.routed === 'string' && ctx.routed ? ctx.routed : seen.routed,
+    };
     pending = seen;
     if (Date.now() - last >= CONTEXT_EVERY_MS) write();
   };
   /** Итог: окно - последнее из потока, расход и стоимость - из итога (он же в отметке запуска и wake.log). */
   update.finish = (r) => {
-    pending = { tokens: seen.tokens, window: r.window || seen.window, usage: r.usage && r.usage.tokens ? r.usage : seen.usage, cost: r.cost || 0 };
+    const model = (r && typeof r.model === 'string' && r.model) || seen.model || '';
+    const routed = (r && typeof r.routed === 'string' && r.routed) || seen.routed || '';
+    pending = { tokens: seen.tokens, window: r.window || seen.window, usage: r.usage && r.usage.tokens ? r.usage : seen.usage, cost: r.cost || 0, model, ...(routed && routed !== model ? { routed } : {}) };
     write(true);
   };
   return update;
 }
 
-/** Расход по запускам: { runId: { tokens, input, cacheWrite, cacheRead, output, context, window, cost, ms, at, live? } }. */
+/** Расход по запускам: { runId: { tokens, input, cacheWrite, cacheRead, output, context, window, cost, ms, at, model?, routed?, estimated?, live? } }. */
 function runs(box) {
   const saved = readJson(runsFile(box), {}) || {};
   const out = {};
