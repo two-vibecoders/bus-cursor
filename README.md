@@ -25,11 +25,12 @@
 
 **Bus Cursor** — файловая шина между агентами Cursor и пользователем: сообщения лежат во входящих, пока их не прочтут. Адресация по **имени** агента, типы `TASK` · `QUESTION` · `DONE`, фоновый подъём через Cursor CLI (`agent -p`).
 
-Это адаптация [claude-bus](https://github.com/jtapes/claude-bus) (Claude Code) под Cursor IDE.
+Это адаптация [claude-bus](https://github.com/jtapes/claude-bus) (Claude Code) под Cursor IDE. Пара для Claude Code в этой org — [bus-claude](https://github.com/two-vibecoders/bus-claude).
 
 | | |
 |---|---|
 | Оригинал | [jtapes/claude-bus](https://github.com/jtapes/claude-bus) · [JTapes](https://github.com/jtapes) |
+| Claude Code (org) | [two-vibecoders/bus-claude](https://github.com/two-vibecoders/bus-claude) |
 | Адаптация под Cursor | [SafonovAG](https://github.com/SafonovAG) · [two-vibecoders/bus-cursor](https://github.com/two-vibecoders/bus-cursor) |
 
 Текущая версия: см. [`release.json`](release.json) и [релизы GitHub](https://github.com/two-vibecoders/bus-cursor/releases).
@@ -161,7 +162,7 @@ node $bus send review TASK "проверь правки"
 ## Авторы
 
 - [JTapes](https://github.com/jtapes) — [claude-bus](https://github.com/jtapes/claude-bus)  
-- [SafonovAG](https://github.com/SafonovAG) — адаптация под Cursor ([two-vibecoders](https://github.com/two-vibecoders))  
+- [SafonovAG](https://github.com/SafonovAG) — адаптация под Cursor; org [two-vibecoders](https://github.com/two-vibecoders) ([bus-cursor](https://github.com/two-vibecoders/bus-cursor), [bus-claude](https://github.com/two-vibecoders/bus-claude))  
 
 ---
 

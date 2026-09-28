@@ -25,11 +25,12 @@
 
 **Bus Cursor** is a file-based message bus between Cursor agents and the user: messages stay in inboxes until they are read. Address agents by **name**, use types `TASK` · `QUESTION` · `DONE`, and wake agents in the background via Cursor CLI (`agent -p`).
 
-It is an adaptation of [claude-bus](https://github.com/jtapes/claude-bus) (Claude Code) for Cursor IDE.
+It is an adaptation of [claude-bus](https://github.com/jtapes/claude-bus) (Claude Code) for Cursor IDE. The Claude Code counterpart in this org is [bus-claude](https://github.com/two-vibecoders/bus-claude).
 
 | | |
 |---|---|
 | Original | [jtapes/claude-bus](https://github.com/jtapes/claude-bus) · [JTapes](https://github.com/jtapes) |
+| Claude Code (org) | [two-vibecoders/bus-claude](https://github.com/two-vibecoders/bus-claude) |
 | Cursor port | [SafonovAG](https://github.com/SafonovAG) · [two-vibecoders/bus-cursor](https://github.com/two-vibecoders/bus-cursor) |
 
 Current version: see [`release.json`](release.json) and [GitHub Releases](https://github.com/two-vibecoders/bus-cursor/releases).
@@ -161,7 +162,7 @@ The skill responds to prompts like “open Bus Cursor”, “what’s in the inb
 ## Authors
 
 - [JTapes](https://github.com/jtapes) — [claude-bus](https://github.com/jtapes/claude-bus)  
-- [SafonovAG](https://github.com/SafonovAG) — Cursor port ([two-vibecoders](https://github.com/two-vibecoders))  
+- [SafonovAG](https://github.com/SafonovAG) — Cursor port; org [two-vibecoders](https://github.com/two-vibecoders) ([bus-cursor](https://github.com/two-vibecoders/bus-cursor), [bus-claude](https://github.com/two-vibecoders/bus-claude))  
 
 ---
 
