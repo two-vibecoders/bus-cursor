@@ -64,7 +64,7 @@
     '{total} сообщ. · несжатых {fresh}': '{total} msg. · {fresh} uncompressed',
     ' · сводка ≈{n} ток.': ' · summary ≈{n} tok.',
     ' · пора сжать': ' · time to compress',
-    'Клик по агенту - его переписка.': 'Click an agent - its conversation.',
+    'Клик по агенту - его переписка. Перетащи строку, чтобы поменять порядок.': 'Click an agent - its conversation. Drag a row to reorder.',
     'Клик - переписка одного агента. Двойной клик по второму или стрелка между именами в сообщении - их диалог; тогда «Сжать диалог» сжимает именно его.': 'Click - one agent’s messages. Double-click a second agent, or the arrow between names in a message - their dialog; “Compress dialog” then compresses exactly that one.',
     '{name} - оркестратор': '{name} - orchestrator',
     '{name} - заведётся в шину': '{name} - will join the bus',

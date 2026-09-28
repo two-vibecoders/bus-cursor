@@ -611,52 +611,74 @@
   main { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; min-width: 0; height: 100%; position: relative; }
 
   /* ---- агенты ---- */
-  .group { margin-bottom: 20px; }
-  .group > .label { display: block; padding: 0 12px 8px; }
-  .group details > summary { cursor: pointer; padding: 0 12px 8px; list-style-position: inside; }
+  .group { margin-bottom: 14px; }
+  .group > .label { display: block; padding: 0 10px 6px; }
+  .group details > summary { cursor: pointer; padding: 0 10px 6px; list-style-position: inside; }
   /* Строка агента - стеклянная плашка, как юнит qwatra: 10 % → 20 % и чуть крупнее под курсором */
-  .agent { --hue: 0; --wire: hsl(var(--hue) var(--wire-s) var(--wire-l)); display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--r); padding: 8px 12px; position: relative; transition: background-color .25s, box-shadow .25s, transform .3s var(--ease); user-select: none; } /* двойной клик выбирает агента, а не выделяет его имя */
+  .agent { --hue: 0; --wire: hsl(var(--hue) var(--wire-s) var(--wire-l)); display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: start; gap: 8px; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--r); padding: 6px 10px; position: relative; transition: background-color .25s, box-shadow .25s, transform .3s var(--ease); user-select: none; } /* двойной клик выбирает агента, а не выделяет его имя */
   .agent:hover { background: var(--glass-1); box-shadow: 0 1px 0 var(--edge) inset; }
   /* Выбранный - прозрачная тонировка цвета агента, гуще у левого края, и линия его цвета; рамки нет, обводка шумела.
      Без стекла: под видеофоном в тёмной теме --glass-* - тёмная подложка, и плашка темнела. Наружных теней нет - выбивались из плоской колонки.
      Линия - внутренняя тень: идёт по скруглению */
   .agent[aria-pressed="true"] { background: linear-gradient(90deg, color-mix(in srgb, var(--wire) 16%, transparent), color-mix(in srgb, var(--wire) 5%, transparent)); box-shadow: inset 2px 0 0 var(--wire), 0 1px 0 var(--edge) inset; }
-  .agent .wire { width: 9px; height: 9px; margin: 7px 0 0 1px; rotate: 45deg; border-radius: 2px; background: hsl(var(--hue) var(--dot-s) var(--dot-l)); box-shadow: 0 0 8px -1px hsl(var(--hue) var(--dot-s) var(--dot-l)); } /* тот же цвет, что у узла агента на ветке */
-  .agent .avatar { width: 22px; height: 22px; margin: 1px 0 0; border-radius: 6px; object-fit: cover; display: block; box-shadow: 0 0 0 1px color-mix(in srgb, var(--line) 70%, transparent); }
-  .agent .name { display: flex; align-items: center; gap: 6px; font: 600 14px/1.4 var(--mono); overflow: hidden; min-width: 0; }
+  .agent .wire { width: 8px; height: 8px; margin: 6px 0 0 1px; rotate: 45deg; border-radius: 2px; background: hsl(var(--hue) var(--dot-s) var(--dot-l)); box-shadow: 0 0 8px -1px hsl(var(--hue) var(--dot-s) var(--dot-l)); transform-origin: 50% 50%; } /* тот же цвет, что у узла агента на ветке */
+  .agent .avatar { width: 20px; height: 20px; margin: 1px 0 0; border-radius: 5px; object-fit: cover; display: block; box-shadow: 0 0 0 1px color-mix(in srgb, var(--line) 70%, transparent); transform-origin: 50% 50%; }
+  .agent .name { display: flex; align-items: center; gap: 5px; font: 600 13px/1.3 var(--mono); overflow: hidden; min-width: 0; }
   .agent .name > .agent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .agent .agent-err {
     flex: none; display: inline-grid; place-items: center;
-    width: 16px; height: 16px; color: var(--danger);
+    width: 14px; height: 14px; color: var(--danger);
   }
-  .agent .agent-err .icon { width: 14px; height: 14px; }
-  .agent .kind { display: block; font-size: 12px; line-height: 1.45; color: var(--ink-soft); }
+  .agent .agent-err .icon { width: 12px; height: 12px; }
+  .agent .kind { display: block; font-size: 11px; line-height: 1.35; color: var(--ink-soft); margin-top: 1px; }
   .agent .note { display: block; } /* строкой, а не через «·»: точка повисала в конце строки при переносе */
   .agent .note.wait, .agent .note.load { color: var(--copper); }
   .agent .note.run { color: var(--done); font-weight: 600; }
   .agent .note.bad { color: var(--danger); }
-  .agent .badge { margin-top: 1px; font: 700 12px/20px var(--label); min-width: 20px; height: 20px; text-align: center; background: radial-gradient(120% 140% at 20% 10%, var(--copper-hi), var(--copper) 70%); color: var(--on-copper); border-radius: 999px; padding: 0 6px; box-shadow: 0 0 12px -2px var(--copper-glow); animation: pop-in .35s var(--ease); }
+  .agent .badge { margin-top: 0; align-self: center; font: 700 11px/18px var(--label); min-width: 18px; height: 18px; text-align: center; background: radial-gradient(120% 140% at 20% 10%, var(--copper-hi), var(--copper) 70%); color: var(--on-copper); border-radius: 999px; padding: 0 5px; box-shadow: 0 0 12px -2px var(--copper-glow); animation: pop-in .35s var(--ease); }
   /* Непрочитанное у агента - не тревога: оно ждёт подъёма или следующего промпта. Медью залито только то, что ждёт самого пользователя */
   .agent .badge.wait { background: var(--glass-1); color: var(--ink-soft); box-shadow: inset 0 0 0 1px var(--line-strong); }
-  .agent.running .wire { animation: live 1.4s ease-in-out infinite; }
-  .agent.running .avatar { animation: live 1.4s ease-in-out infinite; }
+  /* Работает - аватар coquettishly качается; пульс тени - запас для .wire без картинки */
+  .agent.running .avatar,
+  .agent.running .wire,
+  .live-bar-face { animation: avatar-busy .85s ease-in-out infinite; }
+  @keyframes avatar-busy {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    20% { transform: translateX(1.5px) rotate(7deg); }
+    40% { transform: translateX(-1px) rotate(-5deg); }
+    60% { transform: translateX(1.5px) rotate(6deg); }
+    80% { transform: translateX(-1.5px) rotate(-7deg); }
+  }
   @keyframes live { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--done) 60%, transparent), 0 0 8px var(--done); } 50% { box-shadow: 0 0 0 6px transparent, 0 0 14px var(--done); } }
   .agent.off .name { color: var(--ink-soft); }
   .agent.off .wire { background: none; box-shadow: inset 0 0 0 1.5px var(--ink-soft); }
   .agent.off .avatar { opacity: .45; filter: grayscale(.35); }
   .agent.gone .name { text-decoration: line-through; }
-  /* Карандаш - сосед строки, а не её часть: кнопка в кнопке невалидна. Место под него занято всегда - строка под курсором не прыгает */
-  .agent-row { display: flex; align-items: flex-start; gap: 8px; }
-  .agent-row .agent { flex: 1; min-width: 0; }
-  /* На виду всегда: появлявшийся по наведению карандаш пользователь не нашёл - как и спрятанную до выбора пары «Сжать диалог» */
-  .agent-edit { flex: none; display: inline-grid; place-items: center; margin-top: 4px; width: var(--h-sm); height: var(--h-sm); padding: 0; border: 0; background: none; border-radius: var(--r); color: var(--ink-soft); transition: color .2s, background-color .2s, transform .3s var(--ease); }
-  .agent-edit .icon { width: 14px; height: 14px; }
+  /* Карандаш - сосед строки: место занято всегда, виден только на наведении / фокусе */
+  .agent-row { display: flex; align-items: flex-start; gap: 2px; cursor: grab; }
+  .agent-row .agent { flex: 1; min-width: 0; cursor: inherit; }
+  .agent-row.dragging { opacity: .4; cursor: grabbing; }
+  .agent-row.drag-over-before { box-shadow: inset 0 2px 0 var(--copper); }
+  .agent-row.drag-over-after { box-shadow: inset 0 -2px 0 var(--copper); }
+  .agent-edit {
+    flex: none; display: inline-grid; place-items: center; margin-top: 2px;
+    width: var(--h-sm); height: var(--h-sm); padding: 0; border: 0; background: none;
+    border-radius: var(--r); color: var(--ink-soft);
+    opacity: 0; pointer-events: none;
+    transition: color .2s, background-color .2s, transform .3s var(--ease), opacity .18s;
+    cursor: pointer;
+  }
+  .agent-row:hover .agent-edit,
+  .agent-row:focus-within .agent-edit {
+    opacity: 1; pointer-events: auto;
+  }
+  .agent-edit .icon { width: 13px; height: 13px; }
   .agent-edit:hover, .agent-edit:focus-visible { color: var(--copper); background: var(--copper-soft); transform: scale(1.08) rotate(-6deg); }
-  .group > .agent-new { margin: 0 12px 8px; } /* вид - от .squeeze, как у «Сжать диалог»; здесь только место в колонке */
+  .group > .agent-new { margin: 0 10px 6px; } /* вид - от .squeeze, как у «Сжать диалог»; здесь только место в колонке */
   /* Снять выбор агентов: липнет к верху списка, чтоб не искать её под длинной колонкой. Плашка почти глухая: размытие внутри стеклянной панели Chrome не рисует, список просвечивал бы текстом */
-  .unpick { position: sticky; top: 0; z-index: 1; width: 100%; justify-content: center; margin-bottom: 12px; background: color-mix(in srgb, var(--bg) 88%, transparent); }
-  .hint { font-size: 12px; line-height: 1.5; color: var(--ink-soft); padding: 4px 12px 0; margin: 0; }
-  .hint code { font: 12px var(--mono); background: var(--glass-1); border: 1px solid var(--line); border-radius: var(--r-xs); padding: 0 4px; word-break: break-all; }
+  .unpick { position: sticky; top: 0; z-index: 1; width: 100%; justify-content: center; margin-bottom: 8px; background: color-mix(in srgb, var(--bg) 88%, transparent); }
+  .hint { font-size: 11px; line-height: 1.4; color: var(--ink-soft); padding: 2px 10px 0; margin: 0; }
+  .hint code { font: 11px var(--mono); background: var(--glass-1); border: 1px solid var(--line); border-radius: var(--r-xs); padding: 0 4px; word-break: break-all; }
 
   /* ---- фильтры ---- */
   /* Стекло планки - на ::before, а не на ней самой: backdrop-filter у предка отрезает потомкам вид на ленту, и плавающие кнопки выделения не размывали бы её */
@@ -962,6 +984,7 @@
     width: 22px; height: 22px; border-radius: 50%; background: var(--avatar-disc);
     display: inline-grid; place-items: center; flex: none;
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--line) 70%, transparent);
+    transform-origin: 50% 50%;
   }
   .live-bar-face img { width: 14px; height: 14px; object-fit: contain; display: block; }
   .live-bar-face.letter { font: 600 11px var(--mono); color: var(--ink-soft); }
@@ -2328,11 +2351,12 @@
   .about-link:hover {
     background: var(--glass-2) !important;
   }
-  .group { margin-bottom: 12px !important; }
-  .group > .label { padding: 4px 12px 6px !important; font-size: 11px !important; letter-spacing: .08em !important; }
+  .group { margin-bottom: 10px !important; }
+  .group > .label { padding: 2px 10px 4px !important; font-size: 10px !important; letter-spacing: .08em !important; }
   .agent {
-    gap: 8px !important;
-    padding: 7px 10px !important;
+    grid-template-columns: 18px minmax(0, 1fr) auto !important;
+    gap: 7px !important;
+    padding: 5px 8px !important;
     border-radius: var(--r-sm) !important;
     transition: background-color .15s !important;
   }
@@ -2342,37 +2366,59 @@
     box-shadow: inset 2px 0 0 var(--copper) !important;
   }
   .agent .wire {
-    width: 8px !important; height: 8px !important; margin-top: 6px !important;
+    width: 7px !important; height: 7px !important; margin-top: 5px !important;
     rotate: 0deg !important; border-radius: 50% !important;
     box-shadow: none !important;
   }
   .agent .avatar {
-    width: 20px !important; height: 20px !important; margin-top: 0 !important;
+    width: 18px !important; height: 18px !important; margin-top: 0 !important;
     border-radius: 5px !important;
     box-shadow: none !important;
   }
+  .agent .name { font-size: 12.5px !important; line-height: 1.25 !important; }
+  .agent .kind { font-size: 10.5px !important; line-height: 1.3 !important; }
   .agent .badge {
     background: var(--copper) !important;
     box-shadow: none !important;
     font-weight: 600 !important;
-    min-width: 18px !important; height: 18px !important; line-height: 18px !important;
+    min-width: 16px !important; height: 16px !important; line-height: 16px !important;
+    font-size: 10px !important;
   }
   .agent .badge.wait {
     background: var(--glass-3) !important;
     color: var(--ink-soft) !important;
     box-shadow: none !important;
   }
-  .agent.running .wire { animation: none !important; outline: 2px solid color-mix(in srgb, var(--done) 50%, transparent); outline-offset: 2px; }
-  .agent.running .avatar { animation: none !important; outline: 2px solid color-mix(in srgb, var(--done) 50%, transparent); outline-offset: 2px; }
+  /* Работающий агент: лёгкое покачивание аватара (не только обводка) */
+  .agent.running .wire,
+  .agent.running .avatar,
+  .live-bar-face {
+    animation: avatar-busy .85s ease-in-out infinite !important;
+    outline: none !important;
+  }
   .agent-edit {
     color: var(--ink-soft) !important;
     border-radius: var(--r-sm) !important;
+    margin-top: 1px !important;
+    width: 26px !important; height: 26px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  .agent-row:hover .agent-edit,
+  .agent-row:focus-within .agent-edit {
+    opacity: 1 !important;
+    pointer-events: auto !important;
   }
   .agent-edit:hover, .agent-edit:focus-visible {
     color: var(--copper) !important;
     background: var(--copper-soft) !important;
     transform: none !important;
   }
+  .agent-row.dragging { opacity: .4 !important; }
+  .agent-row.drag-over-before { box-shadow: inset 0 2px 0 var(--copper) !important; }
+  .agent-row.drag-over-after { box-shadow: inset 0 -2px 0 var(--copper) !important; }
+  .group > .agent-new { margin: 0 8px 4px !important; }
+  .hint { font-size: 10.5px !important; padding: 0 8px !important; }
   .unpick {
     background: var(--panel) !important;
     margin-bottom: 8px !important;
@@ -3741,7 +3787,7 @@ function freshByAgent() {
   return lists;
 }
 
-function agentButton(agent, fresh, me) {
+function agentButton(agent, fresh, me, group = 'here') {
   // Столько агент потянет в контекст, если прочтёт всю свою переписку: сигнал, в какой диалог зайти и сжать
   const load = L.tokensOf(fresh.get(agent.key) || []);
   const status = L.agentStatus(agent, load);
@@ -3768,11 +3814,126 @@ function agentButton(agent, fresh, me) {
   button.dataset.kind = agent.kind;
   button.style.setProperty('--hue', hueOf(agent.name, agent.kind));
   button.setAttribute('aria-pressed', String(filters.agents.has(agent.key)));
-  button.addEventListener('click', (e) => pickAgent(agent, e));
-  if (!agent.editable) return button;
+  button.draggable = true;
+  button.addEventListener('click', (e) => {
+    if (suppressAgentClick) { e.preventDefault(); e.stopPropagation(); return; }
+    pickAgent(agent, e);
+  });
   const boss = agent.kind === 'project';
-  const edit = el('button', { type: 'button', className: 'agent-edit', title: boss ? tr('Оркестратор: промпт, модель, effort, fast') : tr('Роль агента: посмотреть, поправить, удалить'), ariaLabel: tr(boss ? N('Оркестратор {name}') : N('Роль агента {name}'), { name: agent.name }), onclick: () => openAgentPanel(agent) }, icon('edit'));
-  return el('div', { className: 'agent-row' }, button, edit);
+  const edit = agent.editable
+    ? el('button', { type: 'button', className: 'agent-edit', title: boss ? tr('Оркестратор: промпт, модель, effort, fast') : tr('Роль агента: посмотреть, поправить, удалить'), ariaLabel: tr(boss ? N('Оркестратор {name}') : N('Роль агента {name}'), { name: agent.name }), onclick: () => openAgentPanel(agent) }, icon('edit'))
+    : '';
+  const row = el('div', { className: 'agent-row' }, button, edit);
+  row.dataset.key = agent.key;
+  row.dataset.group = group;
+  bindAgentDrag(row, button, agent, group);
+  return row;
+}
+
+// ---------- порядок агентов в сайдбаре (localStorage, как черновик чата) ----------
+
+let agentDrag = null; // { key, group }
+let suppressAgentClick = false;
+
+const agentOrderScope = () => (state.here && (state.here.root || state.here.cwd)) || '_';
+const agentOrderKey = (scope = agentOrderScope()) => `bus-agent-order:${scope}`;
+
+function loadAgentOrder() {
+  try {
+    const raw = localStorage.getItem(agentOrderKey());
+    if (!raw) return { here: [], globals: [] };
+    const data = JSON.parse(raw);
+    return {
+      here: Array.isArray(data.here) ? data.here.map(String) : [],
+      globals: Array.isArray(data.globals) ? data.globals.map(String) : [],
+    };
+  } catch {
+    return { here: [], globals: [] };
+  }
+}
+
+function saveAgentOrder(order) {
+  try { localStorage.setItem(agentOrderKey(), JSON.stringify(order)); } catch {}
+}
+
+function sortAgentsByOrder(list, keys) {
+  if (!keys || !keys.length) return list;
+  const rank = new Map(keys.map((k, i) => [k, i]));
+  return [...list].sort((a, b) => {
+    const ra = rank.has(a.key) ? rank.get(a.key) : Infinity;
+    const rb = rank.has(b.key) ? rank.get(b.key) : Infinity;
+    if (ra !== rb) return ra - rb;
+    return (b.orchestrator ? 1 : 0) - (a.orchestrator ? 1 : 0) || Number(b.registered) - Number(a.registered) || a.name.localeCompare(b.name);
+  });
+}
+
+function clearAgentDragMarks() {
+  for (const node of document.querySelectorAll('.agent-row.dragging, .agent-row.drag-over-before, .agent-row.drag-over-after')) {
+    node.classList.remove('dragging', 'drag-over-before', 'drag-over-after');
+  }
+}
+
+function bindAgentDrag(row, button, agent, group) {
+  const start = (e) => {
+    if (e.target.closest('.agent-edit')) { e.preventDefault(); return; }
+    agentDrag = { key: agent.key, group };
+    row.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', agent.key); } catch {}
+  };
+  const over = (e) => {
+    if (!agentDrag || agentDrag.group !== group || agentDrag.key === agent.key) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = row.getBoundingClientRect();
+    const before = e.clientY < rect.top + rect.height / 2;
+    row.classList.toggle('drag-over-before', before);
+    row.classList.toggle('drag-over-after', !before);
+  };
+  const leave = () => row.classList.remove('drag-over-before', 'drag-over-after');
+  const drop = (e) => {
+    e.preventDefault();
+    row.classList.remove('drag-over-before', 'drag-over-after');
+    if (!agentDrag || agentDrag.group !== group || agentDrag.key === agent.key) return;
+    const rect = row.getBoundingClientRect();
+    const before = e.clientY < rect.top + rect.height / 2;
+    const fromKey = agentDrag.key;
+    agentDrag = null;
+    suppressAgentClick = true;
+    setTimeout(() => { suppressAgentClick = false; }, 0);
+    clearAgentDragMarks();
+    reorderAgentInGroup(group, fromKey, agent.key, before);
+  };
+  const end = () => {
+    clearAgentDragMarks();
+    if (agentDrag) {
+      suppressAgentClick = true;
+      setTimeout(() => { suppressAgentClick = false; }, 0);
+    }
+    agentDrag = null;
+  };
+  button.addEventListener('dragstart', start);
+  button.addEventListener('dragend', end);
+  row.addEventListener('dragover', over);
+  row.addEventListener('dragleave', leave);
+  row.addEventListener('drop', drop);
+}
+
+function reorderAgentInGroup(group, fromKey, toKey, before) {
+  const order = loadAgentOrder();
+  const grouped = L.groupAgents(state.agents);
+  const list = group === 'globals' ? grouped.globals : grouped.here;
+  const keys = sortAgentsByOrder(list, order[group] || []).map((a) => a.key);
+  const from = keys.indexOf(fromKey);
+  if (from < 0 || !keys.includes(toKey)) return;
+  keys.splice(from, 1);
+  let insert = keys.indexOf(toKey);
+  if (insert < 0) return;
+  if (!before) insert += 1;
+  keys.splice(insert, 0, fromKey);
+  order[group] = keys;
+  saveAgentOrder(order);
+  renderAgents();
 }
 
 // ---------- вес переписки ----------
@@ -4073,11 +4234,22 @@ async function setupOrchestratorIfNew() {
     return; // домашняя / служебная папка - просто сменили cwd
   }
   if (!r.attached || !r.key) return;
-  // SSE here мог ещё не дойти: applyAgents обновит список; панель открываем по ключу из ответа
+  // Выровнять here до SSE/load: иначе чужие субагенты ещё «here» и всплывают «Другие проекты»
+  if (r.root) state.here = { ...state.here, project: r.project || r.name, root: r.root };
+  syncAgentsHereFlags();
   if (!state.agents.some((a) => a.key === r.key)) {
-    state.agents = [...state.agents, { key: r.key, name: r.name || r.project, kind: 'project', orchestrator: true, here: true }];
-    state.here = { ...state.here, project: r.project || r.name, root: r.root || state.here.root };
+    state.agents = [...state.agents, {
+      key: r.key,
+      name: r.name || r.project,
+      kind: 'project',
+      orchestrator: true,
+      here: true,
+      root: r.root || state.here.root,
+      registered: true,
+      alive: true,
+    }];
   }
+  renderAgents();
   await openAgentPanel({ key: r.key, name: r.name || r.project, kind: 'project', orchestrator: true, here: true });
 }
 
@@ -4279,15 +4451,15 @@ function toggleAside(open) {
 
 function renderAgents() {
   if (settingsOpen) updateSettingsAgentPromptEmpty();
-  const { here, globals, others } = L.groupAgents(state.agents);
+  const grouped = L.groupAgents(state.agents);
+  const order = loadAgentOrder();
+  const here = sortAgentsByOrder(grouped.here, order.here);
+  const globals = sortAgentsByOrder(grouped.globals, order.globals);
   const aside = $('agentsList');
-  const othersOpen = Boolean(aside.querySelector('details[open]')); // перерисовка не должна схлопывать раскрытую группу под курсором
-  // …и уводить фокус: кнопки пересобираются, а с клавиатуры после выбора агента идут дальше по списку
+  // Фокус: кнопки пересобираются, а с клавиатуры после выбора агента идут дальше по списку
   const focused = aside.contains(document.activeElement) ? document.activeElement.closest('.agent') : null;
   const fresh = freshByAgent();
   const me = hereBoss();
-  const button = (agent) => agentButton(agent, fresh, me);
-  const hasLocal = settingsHasProjectAgents();
   aside.replaceChildren();
   // Одного агента снимает повторный клик по нему; пару и группу - эта кнопка
   if (filters.agents.size >= 2) aside.append(el('button', { type: 'button', id: 'unpick', className: 'ghost unpick', onclick: () => selectAgents([]) }, icon('x'), tr('Снять выбор · {n}', { n: filters.agents.size })));
@@ -4295,16 +4467,11 @@ function renderAgents() {
   const hereGroup = el('div', { className: 'group' }, el('span', { className: 'label' }, tr('Эта директория')));
   // Не disabled: причина, почему агента не завести, понятнее из клика, чем из полупрозрачной кнопки
   hereGroup.append(el('button', { type: 'button', id: 'agentNew', className: 'squeeze agent-new', onclick: () => openAgentPanel(null) }, icon('plus'), el('span', {}, tr('Новый агент'))));
-  hereGroup.append(el('p', { className: 'hint' }, tr('Клик по агенту - его переписка.')));
-  hereGroup.append(...here.map(button));
+  hereGroup.append(el('p', { className: 'hint' }, tr('Клик по агенту - его переписка. Перетащи строку, чтобы поменять порядок.')));
+  hereGroup.append(...here.map((agent) => agentButton(agent, fresh, me, 'here')));
   aside.append(hereGroup);
-  if (globals.length) aside.append(el('div', { className: 'group' }, el('span', { className: 'label' }, tr('Глобальные')), ...globals.map(button)));
-  // Чужие проекты - только когда в этом каталоге уже есть свои субагенты; иначе список отвлекает от «создай агента»
-  if (hasLocal && others.length) {
-    const details = el('details', {}, el('summary', { className: 'label' }, tr('Другие проекты · {n}', { n: others.length })), ...others.map(button));
-    details.open = othersOpen || others.some((a) => filters.agents.has(a.key));
-    aside.append(el('div', { className: 'group' }, details));
-  }
+  if (globals.length) aside.append(el('div', { className: 'group' }, el('span', { className: 'label' }, tr('Глобальные')), ...globals.map((agent) => agentButton(agent, fresh, me, 'globals'))));
+  // «Другие проекты» в сайдбаре не показываем: переключение - через меню проектов в шапке; список чужих агентов отвлекает
   if (focused) {
     const again = [...aside.querySelectorAll('.agent')].find((node) => node.dataset.key === focused.dataset.key);
     if (again) again.focus({ preventScroll: true });
@@ -5389,6 +5556,7 @@ function connect() {
       if (here && typeof here === 'object') state.here = { ...state.here, ...here };
     } catch { /* пустой here */ }
     dropWorkspaceView();
+    syncAgentsHereFlags(); // до load: иначе renderAgents рисует чужих субагентов и «Другие проекты»
     const pendingName = !state.here.project && state.here.attach && state.here.attach.name;
     $('project').replaceChildren(state.here.project || pendingName || tr('каталог не в шине'), ...(state.here.project ? [el('small', {}, tr('оркестратор'))] : pendingName ? [el('small', {}, tr('подключится с первым сообщением'))] : []));
     if (state.here.cwd) {
@@ -7575,9 +7743,26 @@ function fillSettingsModelSelect(input, selected) {
   input.value = list.some(([v]) => v === cur) ? cur : '';
 }
 
-/** В этом каталоге есть субагенты (не оркестратор) - иначе поле agent.prompt пустое. */
+/** В этом каталоге есть свои субагенты (не оркестратор). Пока их нет - «Другие проекты» в сайдбаре и «Кому» не показываем. */
 function settingsHasProjectAgents() {
-  return state.agents.some((a) => a.here && a.kind !== 'project');
+  return state.agents.some((a) => a.here && a.kind === 'local');
+}
+
+/**
+ * После cd/attach у агентов могли остаться старые here - мигали «Другие проекты» и чужие субагенты в «Эта директория».
+ * Выровнять here по текущему корню (пока load не принёс свежий список).
+ */
+function syncAgentsHereFlags() {
+  const root = state.here && state.here.root;
+  if (!root) {
+    state.agents = state.agents.map((a) => (a.here ? { ...a, here: false } : a));
+    return;
+  }
+  const key = L.dirKey(root);
+  state.agents = state.agents.map((a) => {
+    const here = Boolean(a.root && L.dirKey(a.root) === key);
+    return a.here === here ? a : { ...a, here };
+  });
 }
 
 function updateSettingsAgentPromptEmpty() {
