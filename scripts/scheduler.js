@@ -37,7 +37,7 @@ const HEARTBEAT_FRESH_MS = 90 * 1000;
 const START_WAIT_MS = process.env.BUS_SCHEDULER_START_WAIT_MS === undefined ? 8000 : Number(process.env.BUS_SCHEDULER_START_WAIT_MS); // тесты с подставным pm2 не ждут
 const IDLE_TICKS = 3; // столько проходов подряд без включённых задач - и демон гасит себя
 const CATCHUP_MAX_MS = 7 * 24 * 60 * 60 * 1000; // пропуск старше недели не догоняем
-const NAME = /^[a-z0-9][a-z0-9-]{0,30}$/;
+const NAME = /^[a-z0-9][a-z0-9_-]{0,30}$/;
 const settings = require('./settings.js');
 const MODEL = settings.MODEL; // та же проверка, что у настройки schedule.model: «opus[1m]» проходит и там, и в задаче
 // Дефолты; проект переопределяет их настройками schedule.* (settings.js, шестерёнка в UI). Глобальные задачи (root = null) живут на дефолтах
@@ -65,7 +65,7 @@ const minuteKey = (date) => stamp(false, date).slice(0, 16); // 2026-09-20 09:00
 // ---------- хранилище ----------
 
 function requireJobName(name) {
-  if (!NAME.test(name || '')) throw new bus.BusError('Имя задачи: латиница в нижнем регистре, цифры и дефис, до 31 символа. Пример: bus.js schedule add morning "0 9 * * 1-5" --to dima Проверь задачи');
+  if (!NAME.test(name || '')) throw new bus.BusError('Имя задачи: только английские буквы (a-z), цифры, _ и -, до 31 символа. Пример: bus.js schedule add morning "0 9 * * 1-5" --to dima Проверь задачи');
 }
 
 /** Frontmatter - плоские `ключ: значение`. В кавычках - как есть, без кавычек хвост ` # …` - комментарий. */

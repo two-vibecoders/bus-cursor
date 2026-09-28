@@ -765,6 +765,30 @@ function attachHere() {
   return result.name;
 }
 
+/**
+ * Подключить текущий каталог к шине. attached=true - только что завели оркестратора (UI откроет модалку);
+ * уже был проект - attached=false, модалку не показываем.
+ */
+function attachDir() {
+  let result;
+  try {
+    result = bus.attach(cwd);
+  } catch (e) {
+    throw e instanceof bus.BusError ? new bus.BusError(tr('Каталог к шине не подключить: выбери каталог проекта - клик по пути в шапке.')) : e;
+  }
+  if (result.attached) switchTo(cwd, { remember: false });
+  const snapshot = tick(true) || collectAgents();
+  const boss = snapshot.agents.find((a) => a.kind === 'project' && a.here);
+  return {
+    ok: true,
+    name: result.name,
+    root: result.root || snapshot.here.root,
+    key: boss ? boss.key : '',
+    project: snapshot.here.project || result.name,
+    attached: Boolean(result.attached),
+  };
+}
+
 /** Подпапки для обзора. Без пути - диски (на Windows) или корень; ссылки и junction не показываем: половина из них на Windows - закрытые заглушки. */
 function listDirs(target) {
   const projects = new Map(collectAgents().agents.filter((a) => a.kind === 'project').map((a) => [path.resolve(a.root).toLowerCase(), a.name]));
@@ -1734,7 +1758,7 @@ function orchestratorEntry(key, snapshot) {
 
 /**
  * Роль оркестратора для редактора: свой промпт проекта и общий (common, только показать - правится в шестерёнке).
- * Модель чата Cursor - в пикере IDE, шина её не задаёт.
+ * Модель чата Cursor - в пикере IDE, шина её не задаёт. brief - ответы «о проекте» для генерации описания.
  */
 function orchestratorRole(agent) {
   const values = settings.get(agent.root);
@@ -1743,18 +1767,30 @@ function orchestratorRole(agent) {
     orchestrator: true, key: agent.key, name: agent.name, kind: agent.kind, registered: true, deletable: false,
     where: 'sessionStart → ~/.cursor/hooks.json',
     body: values['orchestrator.projectPrompt'],
+    brief: {
+      theme: values['project.theme'] || '',
+      design: values['project.design'] || '',
+    },
     common,
   };
 }
 
 /**
- * Сохранить промпт оркестратора проекта. Модель/effort/fast в Bus Cursor не пишем - их задаёт пикер Cursor.
+ * Сохранить промпт оркестратора проекта и краткие ответы о проекте.
+ * Тот же текст пишем в agent.prompt - субагенты получают общую суть при подъёме.
  * → { ok, key, file, warnings }
  */
 function saveOrchestrator(agent, body) {
   if (typeof body.body !== 'string') throw new bus.BusError(tr('Поля роли - строки: description, model, effort, body.'));
+  const theme = typeof body.theme === 'string' ? body.theme : '';
+  const design = typeof body.design === 'string' ? body.design : '';
   try {
-    settings.set(agent.root, { 'orchestrator.projectPrompt': body.body });
+    settings.set(agent.root, {
+      'orchestrator.projectPrompt': body.body,
+      'agent.prompt': body.body,
+      'project.theme': theme,
+      'project.design': design,
+    });
   } catch (e) {
     if (!(e instanceof settings.SettingsError)) throw e;
     throw new bus.BusError(e.message);
@@ -1763,6 +1799,101 @@ function saveOrchestrator(agent, body) {
   bus.auditNote(`ui orchestrator save | ${agent.key}`);
   safeTick();
   return { ok: true, key: agent.key, file: 'sessionStart → ~/.cursor/hooks.json', warnings: [] };
+}
+
+/**
+ * Промпты других проектов и агентов - чтобы подставить в форму, а не набирать с нуля.
+ * excludeKey - текущий агент/оркестратор (его текст в списке не нужен).
+ */
+function listPrompts(excludeKey = '') {
+  const snapshot = collectAgents();
+  const skip = String(excludeKey || '');
+  const projectName = (root) => {
+    const boss = snapshot.agents.find((a) => a.kind === 'project' && a.root === root);
+    return boss ? boss.name : (root ? path.basename(root) : tr('глобальный'));
+  };
+  const items = [];
+  for (const a of snapshot.agents) {
+    if (!a.alive || a.key === skip) continue;
+    if (a.kind === 'project') {
+      const body = String(settings.get(a.root)['orchestrator.projectPrompt'] || '').trim();
+      if (!body) continue;
+      items.push({
+        id: `orch:${a.key}`,
+        kind: 'orchestrator',
+        key: a.key,
+        name: a.name,
+        project: a.name,
+        label: tr('Оркестратор «{name}»', { name: a.name }),
+        preview: body.replace(/\s+/g, ' ').slice(0, 120),
+        body,
+      });
+      continue;
+    }
+    if (!a.registered || !a.editable) continue;
+    try {
+      const { file } = roleOf(a.key, snapshot);
+      const role = bus.readRole(file);
+      const body = String(role.body || '').trim();
+      if (!body) continue;
+      const project = a.kind === 'local' ? projectName(a.root) : tr('глобальный');
+      items.push({
+        id: `agent:${a.key}`,
+        kind: 'agent',
+        key: a.key,
+        name: a.name,
+        project,
+        label: tr('Агент «{name}» · {project}', { name: a.name, project }),
+        preview: body.replace(/\s+/g, ' ').slice(0, 120),
+        body,
+      });
+    } catch {
+      // роль недоступна - пропускаем
+    }
+  }
+  items.sort((a, b) => a.label.localeCompare(b.label, 'ru'));
+  return { ok: true, items };
+}
+
+/**
+ * По ответам о проекте ИИ пишет общее описание → body формы оркестратора.
+ * description в ответе не используется (у оркестратора его нет).
+ */
+async function generateProjectBrief({ key, name, theme, design, body }) {
+  if (rewriting) throw new bus.BusError(tr('ИИ уже переписывает роль - дождись ответа.'));
+  const t = String(theme || '').replace(/\s+/g, ' ').trim();
+  const d = String(design || '').replace(/\s+/g, ' ').trim();
+  if (!t && !d) throw new bus.BusError(tr('Заполни хотя бы тематику или дизайн.'));
+  if (typeof body !== 'string') throw new bus.BusError(tr('Поля запроса - строки.'));
+  if (Buffer.byteLength(body) > 20 * 1024) throw new bus.BusError(tr('Роль - до 20 КБ.'));
+  const title = String(name || '').slice(0, 40) || 'project';
+  const prompt = [
+    `Нужно общее описание проекта «${title}» для оркестратора и всех субагентов шины.`,
+    'По ответам пользователя ниже напиши body - markdown: суть проекта, аудитория, дизайн/тон, как агентам держаться в одной картине мира.',
+    'description оставь пустой строкой. Без frontmatter и без блока Bus Cursor. Язык - русский. Объём - до 1500 символов, по делу, без воды.',
+    body.trim() ? 'Если ниже уже есть черновик body - улучши его с учётом ответов, не выбрасывай полезное.' : 'Черновика ещё нет - напиши с нуля.',
+    '',
+    `Тематика проекта: ${t || '(не указана)'}`,
+    `Дизайн проекта: ${d || '(не указан)'}`,
+    '',
+    'body:',
+    body.trim() || '(пусто)',
+  ].join('\n');
+  rewriting = true;
+  try {
+    const { text, tokens } = await runService(prompt, {
+      system: REWRITE_SYSTEM,
+      argsOf: rewriteArgs,
+      model: hereSettings()['ui.rewriteModel'],
+      timeoutMs: REWRITE_TIMEOUT_MS,
+      failed: tr('Описание в форме не тронуто.'),
+    });
+    const result = parseRewrite(text);
+    bus.auditNote(`ui project brief | ${String(key || name).slice(0, 80)} | токенов: ${tokens}`);
+    return { ok: true, description: '', body: result.body, tokens };
+  } finally {
+    rewriting = false;
+  }
 }
 
 function agentRole(key) {
@@ -2084,6 +2215,7 @@ async function handle(req, res, port) {
     if (url.pathname === '/api/file') return url.searchParams.get('k') === token ? serveFile(res, url) : reply(res, 403, { error: tr('Нет токена страницы. Обнови вкладку.') });
     // Текст роли - не для чужой вкладки: тот же токен, что у вложений
     if (url.pathname === '/api/agent') return url.searchParams.get('k') === token ? reply(res, 200, agentRole(url.searchParams.get('key'))) : reply(res, 403, { error: tr('Нет токена страницы. Обнови вкладку.') });
+    if (url.pathname === '/api/prompts') return url.searchParams.get('k') === token ? reply(res, 200, listPrompts(url.searchParams.get('exclude') || '')) : reply(res, 403, { error: tr('Нет токена страницы. Обнови вкладку.') });
     if (url.pathname === '/api/cursor-models') {
       let models = cursorModels.readModels();
       if (!models.length) models = await cursorModels.refresh().catch(() => []);
@@ -2111,6 +2243,7 @@ async function handle(req, res, port) {
     const body = await readBody(req, url.pathname === '/api/send' ? SEND_BODY_LIMIT : roleSized ? ROLE_BODY_LIMIT : BODY_LIMIT);
 
     if (url.pathname === '/api/agent/rewrite') return reply(res, 200, await rewriteRole(body));
+    if (url.pathname === '/api/agent/brief') return reply(res, 200, await generateProjectBrief(body));
     if (url.pathname.startsWith('/api/agent/')) return reply(res, 200, agentAction(url.pathname.slice('/api/agent/'.length), body));
     if (url.pathname === '/api/send') {
       const result = sendFromPage(body);
@@ -2152,6 +2285,7 @@ async function handle(req, res, port) {
     if (url.pathname === '/api/dialog/reopen') return reply(res, 200, reopenDialog(body));
     if (url.pathname === '/api/dialog/delete') return reply(res, 200, deleteDialog(body));
     if (url.pathname === '/api/cd') return reply(res, 200, changeDir(body));
+    if (url.pathname === '/api/attach') return reply(res, 200, attachDir());
     if (url.pathname === '/api/shortcut') return reply(res, 200, createShortcut());
     if (url.pathname === '/api/window') return reply(res, 200, { ok: app.saveWindow(bus.BUS, body) });
     if (url.pathname === '/api/dirs/pin') return reply(res, 200, pinDir(body));

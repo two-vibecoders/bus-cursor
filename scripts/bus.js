@@ -42,13 +42,13 @@ const LOCK = path.join(BUS, 'agents.lock');
 // Тип - это команда шине, а не наклейка: новый заводится только вместе с новым if в этом файле, остальное пишется словами в тексте
 const TYPES = ['TASK', 'QUESTION', 'DONE'];
 const ASK_TYPES = ['TASK', 'QUESTION']; // ждут ответа: отправитель-субагент получает метку ожидания. Будит получателя-субагента любой тип
-const RUN_ENV = /^([a-z0-9][a-z0-9-]{0,30}):([0-9a-z]{4,20}-[0-9a-z]{2,10})$/; // BUS_RUN «агент:id» - ставит раннер wake.js фоновому claude
+const RUN_ENV = /^([a-z0-9][a-z0-9_-]{0,30}):([0-9a-z]{4,20}-[0-9a-z]{2,10})$/; // BUS_RUN «агент:id» - ставит раннер wake.js фоновому claude
 /** id фонового запуска, из которого пишет этот агент: по нему UI подписывает расход токенов на сообщении. Чужое имя в BUS_RUN - не его запуск. */
 function runOf(from) {
   const m = RUN_ENV.exec(process.env.BUS_RUN || '');
   return m && isSubagent(from) && m[1] === from.name ? m[2] : '';
 }
-const NAME = /^[a-z0-9][a-z0-9-]{0,30}$/;
+const NAME = /^[a-z0-9][a-z0-9_-]{0,30}$/; // только a-z, цифры, _ и -; без кириллицы, пробелов и прочего
 const RESERVED = ['files', 'scheduler', 'schedule', 'clear', 'prompts']; // служебные папки .cursor/bus-cursor/ (prompts - промпты подъёма Cursor) и отправитель отчётов расписания - ящик агента лёг бы поверх; clear - «history clear» снёс бы журнал вместо показа переписки с таким агентом
 const settings = require('./settings.js');
 // Лимиты ниже - дефолты: проект переопределяет их настройками (settings.js, шестерёнка в UI, bus.js settings)
@@ -521,7 +521,7 @@ const busBlock = (name) => fs.readFileSync(BLOCK_TEMPLATE, 'utf8').replace(/\r\n
 function ensureBusBlock(file, name) {
   const text = fs.readFileSync(file, 'utf8');
   if (/^## Bus Cursor\s*$/m.test(text)) {
-    if (new RegExp(`--as ${name}(?![a-z0-9-])`).test(text)) return false;
+    if (new RegExp(`--as ${name}(?![a-z0-9_-])`).test(text)) return false;
     // Роль скопировали с другого агента: второй блок «Bus Cursor» рядом с чужим спорил бы с ним, а какой из двух верный - скрипту не видно
     throw new BusError(`В ${file} уже есть блок «Bus Cursor», но без «--as ${name}» - похоже, он от другого агента. Поправь блок руками и повтори.`);
   }
@@ -1224,7 +1224,7 @@ function unread(agent) {
 
 function requireName(name, example) {
   if (RESERVED.includes(name)) throw new BusError(`Имя «${name}» занято самой шиной. Возьми другое.`);
-  if (!NAME.test(name || '')) throw new BusError(`Имя агента: латиница в нижнем регистре, цифры и дефис, до 31 символа. Пример: bus.js ${example}`);
+  if (!NAME.test(name || '')) throw new BusError(`Имя агента: только английские буквы (a-z), цифры, _ и -, до 31 символа. Пример: bus.js ${example}`);
 }
 
 /** dir - каталог проекта явно (автоподключение); без него - корень сессии или cwd. quiet - без вывода: attach скажет своё. */
@@ -1301,10 +1301,10 @@ function attachRefusal(root) {
   return '';
 }
 
-/** Имя проекта из имени папки: латиница, цифры, дефис; кириллица - транслитом; занято - -2, -3… */
+/** Имя проекта из имени папки: a-z, цифры, _ и -; кириллица - транслитом; занято - -2, -3… */
 function autoName(root, agents = loadRegistry(REGISTRY)) {
   const base = [...path.basename(root).toLowerCase()].map((c) => (c in TRANSLIT ? TRANSLIT[c] : c)).join('')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 27).replace(/-+$/, '') || 'project';
+    .replace(/[^a-z0-9_]+/g, '-').replace(/^[-_]+/, '').slice(0, 27).replace(/[-_]+$/, '') || 'project';
   const locals = loadLocals(root);
   // Имя роли - будущий адресат: проект с тем же именем столкнулся бы с ней при первом сообщении
   const taken = (name) => RESERVED.includes(name) || Boolean(agents[name]) || Boolean(locals[name])

@@ -592,7 +592,9 @@
     return { text: `≈${short(u.tokens)}`, model, title: lines.join('\n'), live: Boolean(u.live), estimated };
   }
 
-  const AGENT_NAME = /^[a-z0-9][a-z0-9-]{0,30}$/; // то же правило, что NAME и RESERVED в bus.js
+  const AGENT_NAME = /^[a-z0-9][a-z0-9_-]{0,30}$/; // то же правило, что NAME в bus.js: a-z, цифры, _ и -
+  /** Оставить в имени только допустимые символы (нижний регистр); лишнее выкинуть. */
+  const sanitizeAgentName = (name) => String(name || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 31);
   const validAgentName = (name) => AGENT_NAME.test(String(name || '')) && !['files', 'scheduler', 'schedule', 'clear', 'prompts'].includes(name);
 
   /** Можно ли выбрать агента в «Кому»: есть от чьего имени писать (agent.from), а сам он в шине или заведётся при первом сообщении. */
@@ -763,7 +765,7 @@
 
   const SCHEDULE_MINUTE_STEPS = [5, 10, 15, 20, 30]; // варианты «каждые N минут» в форме - те же, что примет сервер без --force
   const SCHEDULE_HOUR_STEPS = [1, 2, 3, 4, 6, 8, 12]; // варианты «каждые N часов»
-  const SCHEDULE_NAME = /^[a-z0-9][a-z0-9-]{0,30}$/; // как NAME в scheduler.js
+  const SCHEDULE_NAME = /^[a-z0-9][a-z0-9_-]{0,30}$/; // как NAME в scheduler.js
 
   const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -1050,7 +1052,7 @@
 
   return {
     dirKey, dirName, dirGroups, feedScope, atToken, fileScore, fileMatches, mentionPath,
-    ORCH_HUE, hue, assignHues, duration, rateLimits, tabContext, messageUsage, pairKey, pairOf, selectedPair, threadKey, threadOf, viewPair, viewThread, covered, tokensOf, summaryTokens, weightReport, sizeOf, short, messageInHere, passes, splitByQuery, markdown, markdownInline, unreadIds, readTarget, nextSelection, feedItems, pairInfo, groupAgents, agentStatus, clock, elapsed, runMark, liveLines, liveLast, canBtw, canEvolve, wakeActionNote, blockedNote, writable, nameOf, dictated, spaceTap, voiceNote, lineDiff, raisedNote, sentNote, dialogTarget, dialogTitle, dialogTabs, validAgentName,
+    ORCH_HUE, hue, assignHues, duration, rateLimits, tabContext, messageUsage, pairKey, pairOf, selectedPair, threadKey, threadOf, viewPair, viewThread, covered, tokensOf, summaryTokens, weightReport, sizeOf, short, messageInHere, passes, splitByQuery, markdown, markdownInline, unreadIds, readTarget, nextSelection, feedItems, pairInfo, groupAgents, agentStatus, clock, elapsed, runMark, liveLines, liveLast, canBtw, canEvolve, wakeActionNote, blockedNote, writable, nameOf, dictated, spaceTap, voiceNote, lineDiff, raisedNote, sentNote, dialogTarget, dialogTitle, dialogTabs, validAgentName, sanitizeAgentName,
     SCHEDULE_MINUTE_STEPS, SCHEDULE_HOUR_STEPS, buildScheduleCron, scheduleCronPreset, scheduleTarget, scheduleNextLabel, scheduleLastNote, scheduleDaemonNote, scheduleBadge, scheduleGroups, validScheduleName, isFrequentError,
     ACCESS_PRESETS, accessPreset, accessDenied, accessFromDenied, accessWeight, accessDeltaLabel,
     setThresholds, settingsDirty, settingsFieldError,

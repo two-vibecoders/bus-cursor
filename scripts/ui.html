@@ -1493,10 +1493,13 @@
   .schedule form textarea { min-height: 90px; max-height: min(35vh, 320px); }
   .schedule form #agentBody {
     min-height: 160px;
-    max-height: min(55vh, 560px);
+    max-height: min(70vh, 720px);
+    height: min(42vh, 420px);
     font: 14px/1.5 var(--mono);
     field-sizing: fixed;
     overflow-y: auto;
+    resize: vertical;
+    overscroll-behavior: contain;
   }
   .schedule form #agentAsk {
     min-height: 56px;
@@ -3208,7 +3211,7 @@
   <form id="scheduleForm" hidden>
     <h3 id="schedFormTitle">Новая задача</h3>
     <label><span class="label">Каталог</span><select id="schedRoot"></select></label>
-    <label><span class="label">Имя<small>латиница, цифры, дефис</small></span><input id="schedName" type="text" maxlength="31" pattern="[a-z0-9][a-z0-9\-]{0,30}" required autocomplete="off"></label>
+    <label><span class="label">Имя<small>a-z, цифры, _ и -</small></span><input id="schedName" type="text" maxlength="31" pattern="[a-z0-9][a-z0-9_\-]{0,30}" required autocomplete="off" spellcheck="false"></label>
 
     <fieldset class="sched-cron">
       <legend class="label">Расписание</legend>
@@ -3330,7 +3333,7 @@
   </div>
   <p class="sched-warn" id="agentWarn" hidden></p>
   <form id="agentForm">
-    <label id="agentNameLabel"><span class="label">Имя<small>латиница, цифры, дефис</small></span><input id="agentName" type="text" maxlength="31" pattern="[a-z0-9][a-z0-9\-]{0,30}" required autocomplete="off" spellcheck="false"></label>
+    <label id="agentNameLabel"><span class="label">Имя<small>a-z, цифры, _ и -</small></span><input id="agentName" type="text" maxlength="31" pattern="[a-z0-9][a-z0-9_\-]{0,30}" required autocomplete="off" spellcheck="false"></label>
     <label id="agentCursorModelLabel"><span class="label">Модель<small>из доступных в Cursor; пусто - Auto</small></span><select id="agentCursorModel"></select></label>
     <label id="agentModelLabel" hidden><span class="label">Модель</span><select id="agentModel"></select></label>
     <label class="wide" id="agentAboutLabel"><span class="label">Описание<small>когда этого агента поднимать; пусто - первая строка роли</small></span><input id="agentAbout" type="text" autocomplete="off"></label>
@@ -3381,6 +3384,17 @@
       <div class="role-diff" id="agentAiDiff" role="region" aria-label="Изменения ИИ" tabindex="0" hidden></div>
     </fieldset>
 
+    <fieldset class="role-ai" id="agentBrief" hidden>
+      <legend class="label">О проекте</legend>
+      <label class="wide"><span class="label">Тематика<small>о чём продукт, для кого</small></span><input id="agentBriefTheme" type="text" maxlength="400" autocomplete="off"></label>
+      <label class="wide"><span class="label">Дизайн<small>стиль, тон, референсы</small></span><input id="agentBriefDesign" type="text" maxlength="400" autocomplete="off"></label>
+      <div class="role-ai-row">
+        <button class="squeeze" id="agentBriefGen" type="button"><svg class="icon"><use href="#i-squeeze"/></svg><span>Сгенерировать описание с ИИ</span></button>
+      </div>
+      <p class="hint" id="agentBriefHint">ИИ соберёт общее описание в промпт ниже. При сохранении оно уйдёт и всем агентам проекта - чтобы держали одну картину мира.</p>
+    </fieldset>
+
+    <label class="wide" id="agentPromptPickWrap"><span class="label">Взять промпт<small>из другого проекта или агента</small></span><select id="agentPromptPick"><option value="">—</option></select></label>
     <label class="wide"><span class="label" id="agentBodyRole">Роль<small>зона ответственности, правила работы</small></span><span class="label" id="agentBodyBoss" hidden>Промпт проекта<small>дописывается к общему; сессия получает его хуком sessionStart</small></span><textarea id="agentBody" required spellcheck="false"></textarea></label>
     <details id="agentCommonWrap" hidden><summary class="label">Общий промпт всех оркестраторов - правится в шестерёнке</summary><pre class="role-bus" id="agentCommon"></pre></details>
     <details id="agentBusWrap" hidden><summary class="label">Блок «Bus Cursor» - его ведёт скрипт</summary><pre class="role-bus" id="agentBus"></pre></details>
@@ -4041,9 +4055,30 @@ async function changeDir(dir) {
     browseSelected = null;
     closeProjectsMenu();
     closeDirs(); // остальное (шапка, лента, пороги) придёт по SSE here - у всех вкладок разом
+    await setupOrchestratorIfNew();
   } catch (err) {
     dirsSay(err.message);
   }
+}
+
+/**
+ * Новый каталог ещё не в шине, но его можно подключить - attach + сразу модалка оркестратора
+ * (промпт проекта). Уже зарегистрированный проект - attached=false, панель не трогаем.
+ */
+async function setupOrchestratorIfNew() {
+  let r;
+  try {
+    r = await post('/api/attach', {});
+  } catch {
+    return; // домашняя / служебная папка - просто сменили cwd
+  }
+  if (!r.attached || !r.key) return;
+  // SSE here мог ещё не дойти: applyAgents обновит список; панель открываем по ключу из ответа
+  if (!state.agents.some((a) => a.key === r.key)) {
+    state.agents = [...state.agents, { key: r.key, name: r.name || r.project, kind: 'project', orchestrator: true, here: true }];
+    state.here = { ...state.here, project: r.project || r.name, root: r.root || state.here.root };
+  }
+  await openAgentPanel({ key: r.key, name: r.name || r.project, kind: 'project', orchestrator: true, here: true });
 }
 
 async function pinDir(dir, on) {
@@ -5579,7 +5614,8 @@ const AGENT_EFFORTS = [['', N('по умолчанию у модели')], ['low
 // agent: null - форма нового; before - описание и роль до правки ИИ: с ними сравнивает diff, к ним возвращает «Откатить»
 // access: off - снятые группы, serversOff - снятые по одному MCP-серверы, manual - роль с рукописной tools (галочки спрятаны), convert - нажали «Перевести на галочки»
 // orchestrator - открыт оркестратор (fillOrchestratorMode): только промпт проекта; модель чата - в пикере Cursor
-const agentPanel = { open: false, agent: null, busy: false, before: null, opener: null, orchestrator: false, access: { off: [], serversOff: [], servers: [], extra: [], manual: false, convert: false } };
+// prompts - кэш списка чужих промптов для select «Взять промпт»
+const agentPanel = { open: false, agent: null, busy: false, before: null, opener: null, orchestrator: false, prompts: new Map(), access: { off: [], serversOff: [], servers: [], extra: [], manual: false, convert: false } };
 
 function agentError(text) {
   $('agentError').textContent = text || '';
@@ -5588,13 +5624,13 @@ function agentError(text) {
 
 /**
  * Оркестратор - та же форма без имени, описания, доступа, модели и блока «Bus Cursor»:
- * правится только промпт проекта (+ общий из шестерёнки, только чтение). Модель чата - в пикере Cursor.
+ * правится промпт проекта (+ общий из шестерёнки) и блок «О проекте». Модель чата - в пикере Cursor.
  */
 function fillOrchestratorMode(role) {
   const boss = Boolean(role && role.orchestrator);
   agentPanel.orchestrator = boss;
   for (const id of ['agentNameLabel', 'agentAboutLabel', 'agentAccess', 'agentBodyRole', 'agentCursorModelLabel', 'agentCursorNote']) $(id).hidden = boss;
-  for (const id of ['agentBodyBoss', 'agentBossNote']) $(id).hidden = !boss;
+  for (const id of ['agentBodyBoss', 'agentBossNote', 'agentBrief']) $(id).hidden = !boss;
   // model / effort / fast / CLAUDE.md - наследие Claude Code; в Bus Cursor оркестратору не задаём
   for (const id of ['agentModelLabel', 'agentEffortLabel', 'agentFastLabel', 'agentFastBoss', 'agentRulesLabel']) $(id).hidden = true;
   $('agentFastRole').hidden = false;
@@ -5646,6 +5682,10 @@ function fillAgentForm(role) {
   $('agentRules').checked = false;
   fillCursorModels(fresh || boss ? '' : role.cursorModel || '');
   $('agentBody').value = fresh ? '' : role.body;
+  const brief = boss && role.brief ? role.brief : { theme: '', design: '' };
+  $('agentBriefTheme').value = brief.theme || '';
+  $('agentBriefDesign').value = brief.design || '';
+  fillPromptPick(fresh ? '' : role.key || '');
   const manual = !fresh && Boolean(role.toolsLine);
   const servers = fresh ? state.access.servers : role.servers || [];
   const given = L.accessFromDenied(fresh ? [] : role.denied);
@@ -5671,7 +5711,7 @@ function fillAgentForm(role) {
   $('agentReject').hidden = true;
   if (!fresh && role.proposal) showProposal(role);
   fitArea($('agentAsk'), 56, () => Math.min(window.innerHeight * 0.4, 360));
-  fitArea($('agentBody'), 160, () => Math.min(window.innerHeight * 0.55, 560));
+  resetAgentBodySize();
 }
 
 /** Черновик самоправки ложится в форму так же, как ответ «Переписать с ИИ»: diff от роли на диске, на диск - только по «Сохранить». */
@@ -5848,15 +5888,118 @@ $('agentClose').addEventListener('click', closeAgentPanel);
 $('agentCancel').addEventListener('click', closeAgentPanel);
 $('agentBackdrop').addEventListener('click', closeAgentPanel);
 
+/** Имя агента/задачи: только a-z, цифры, _ и -; верхний регистр и прочее срезаем на лету. */
+function bindNameSanitize(field) {
+  if (!field || field.dataset.nameSanitize) return;
+  field.dataset.nameSanitize = '1';
+  field.addEventListener('input', () => {
+    const cleaned = L.sanitizeAgentName(field.value);
+    if (field.value === cleaned) return;
+    const start = field.selectionStart;
+    const delta = field.value.length - cleaned.length;
+    field.value = cleaned;
+    const pos = Math.max(0, (start || 0) - delta);
+    try { field.setSelectionRange(pos, pos); } catch { /* type=number и т.п. */ }
+  });
+}
+bindNameSanitize($('agentName'));
+bindNameSanitize($('schedName'));
+
+/** Список чужих промптов в select над ролью; excludeKey - текущий агент/оркестратор. */
+async function fillPromptPick(excludeKey = '') {
+  const sel = $('agentPromptPick');
+  const keep = sel.value;
+  setOptions(sel, [el('option', { value: '' }, tr('— не подставлять —'))]);
+  try {
+    const data = await getJson(`/api/prompts?exclude=${encodeURIComponent(excludeKey || '')}&k=${TOKEN}`);
+    const items = Array.isArray(data.items) ? data.items : [];
+    agentPanel.prompts = new Map(items.map((item) => [item.id, item]));
+    for (const item of items) {
+      const opt = el('option', { value: item.id }, item.label);
+      opt.title = item.preview || '';
+      sel.append(opt);
+    }
+    $('agentPromptPickWrap').hidden = items.length === 0;
+    if (keep && agentPanel.prompts.has(keep)) sel.value = keep;
+  } catch {
+    agentPanel.prompts = new Map();
+    $('agentPromptPickWrap').hidden = true;
+  }
+}
+
+$('agentPromptPick').addEventListener('change', async () => {
+  const id = $('agentPromptPick').value;
+  if (!id || !agentPanel.prompts) return;
+  const item = agentPanel.prompts.get(id);
+  if (!item || !item.body) return;
+  const cur = $('agentBody').value.trim();
+  if (cur && cur !== item.body && !await askConfirm(tr('Заменить текущий текст промптом «{label}»?', { label: item.label }), { title: tr('Подставить промпт'), ok: tr('Заменить') })) {
+    $('agentPromptPick').value = '';
+    return;
+  }
+  $('agentBody').value = item.body;
+  $('agentPromptPick').value = '';
+  resetAgentBodySize();
+});
+
+$('agentBriefGen').addEventListener('click', async () => {
+  if (agentPanel.busy || !agentPanel.orchestrator) return;
+  const theme = $('agentBriefTheme').value.trim();
+  const design = $('agentBriefDesign').value.trim();
+  if (!theme && !design) {
+    return agentError(tr('Заполни хотя бы тематику или дизайн.'));
+  }
+  agentError('');
+  const button = $('agentBriefGen');
+  agentPanel.busy = true;
+  button.disabled = true;
+  $('agentSave').disabled = true;
+  $('agentRewrite').disabled = true;
+  const since = Date.now();
+  const spent = () => L.elapsed(Date.now() - since);
+  const tick = () => (button.lastElementChild.textContent = `${tr('Пишу описание…')} ${spent()}`);
+  tick();
+  const clock = setInterval(tick, 1000);
+  try {
+    const r = await post('/api/agent/brief', {
+      key: agentPanel.agent ? agentPanel.agent.key : null,
+      name: agentPanel.agent ? agentPanel.agent.name : $('agentName').value.trim() || 'project',
+      theme,
+      design,
+      body: $('agentBody').value,
+    });
+    agentPanel.before = { description: $('agentAbout').value, body: $('agentBody').value };
+    $('agentBody').value = r.body;
+    $('agentAiUndo').hidden = false;
+    renderAgentDiff();
+    agentAiNote(tr('Описание проекта готово за {time} · ≈{n} ток. Проверь и жми «Сохранить» - до этого на диске ничего не поменялось.', { time: spent(), n: L.short(r.tokens) }));
+    resetAgentBodySize();
+  } catch (err) {
+    agentError(err.message);
+  } finally {
+    clearInterval(clock);
+    agentPanel.busy = false;
+    button.disabled = false;
+    $('agentSave').disabled = false;
+    $('agentRewrite').disabled = false;
+    button.lastElementChild.textContent = tr('Сгенерировать описание с ИИ');
+  }
+});
+
 $('agentForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (agentPanel.busy) return;
   const fresh = !agentPanel.agent;
-  const name = $('agentName').value.trim();
-  if (fresh && !L.validAgentName(name)) return agentError(tr('Имя: латиница в нижнем регистре, цифры и дефис, до 31 символа; files, scheduler и schedule заняты шиной.'));
+  const name = L.sanitizeAgentName($('agentName').value);
+  $('agentName').value = name;
+  if (fresh && !L.validAgentName(name)) return agentError(tr('Имя: только английские буквы (a-z), цифры, _ и -, до 31 символа; files, scheduler и schedule заняты шиной.'));
   const boss = agentPanel.orchestrator;
   const fields = boss
-    ? { body: $('agentBody').value }
+    ? {
+      body: $('agentBody').value,
+      theme: $('agentBriefTheme').value,
+      design: $('agentBriefDesign').value,
+    }
     : { description: $('agentAbout').value, model: '', effort: '', fast: false, rules: false, body: $('agentBody').value, runtime: 'cursor', cursorModel: $('agentCursorModel').value.trim() };
   // Роль с рукописной tools, которую на галочки не переводили, доступ не шлёт - сервер строку не тронет. У оркестратора доступа в форме нет
   const access = agentPanel.access;
@@ -5866,7 +6009,7 @@ $('agentForm').addEventListener('submit', async (e) => {
     const r = fresh ? await post('/api/agent/create', { name, ...fields }) : await post('/api/agent/save', { key: agentPanel.agent.key, ...fields });
     closeAgentPanel();
     const warn = (r.warnings || []).join(' ');
-    if (boss) say(`${tr('Оркестратор сохранён. Промпт - с новой сессии Cursor (хук sessionStart).')}${warn ? ` ${warn}` : ''}`, Boolean(warn));
+    if (boss) say(`${tr('Оркестратор сохранён. Промпт - с новой сессии Cursor; то же описание получат агенты проекта.')}${warn ? ` ${warn}` : ''}`, Boolean(warn));
     else say(fresh ? tr('Агент «{name}» создан и заведён в шину: {file}', { name, file: r.file }) : tr('Роль сохранена: {file}', { file: r.file }));
     if (fresh) {
       pendingTo = r.key; // «Кому» переезжает на нового
@@ -5946,7 +6089,7 @@ $('agentRewrite').addEventListener('click', async () => {
     agentAiNote(tr('ИИ переписал за {time} · ≈{n} ток. Проверь изменения и жми «Сохранить» - до этого на диске ничего не поменялось.', { time: spent(), n: L.short(r.tokens) }));
     $('agentAsk').value = '';
     fitArea($('agentAsk'), 56, () => Math.min(window.innerHeight * 0.4, 360));
-    fitArea($('agentBody'), 160, () => Math.min(window.innerHeight * 0.55, 560));
+    // Высоту роли пользователь тянет сам - autofit сбрасывал бы ручной resize
   } catch (err) {
     agentAiNote(`${err.message} ${tr('Ушло времени: {time}.', { time: spent() })}`, true);
   } finally {
@@ -5961,7 +6104,6 @@ $('agentRewrite').addEventListener('click', async () => {
 $('agentAiUndo').addEventListener('click', () => {
   $('agentAbout').value = agentPanel.before.description;
   $('agentBody').value = agentPanel.before.body;
-  fitArea($('agentBody'), 160, () => Math.min(window.innerHeight * 0.55, 560));
   // Черновик агента при этом остаётся в его ящике: откроешь роль снова - он опять ляжет в форму. Убирает его «Отклонить правку агента»
   resetAgentAi($('agentReject').hidden ? tr('Откатил. ИИ-правка отменена.') : tr('Откатил форму к роли на диске. Черновик агента остался - убрать его совсем: «Отклонить правку агента».'));
 });
@@ -6468,11 +6610,22 @@ function fitArea(field, min = 40, max = 360) {
   field.style.overflowY = content > hi + 1 ? 'auto' : 'hidden';
 }
 
+/**
+ * Роль / промпт проекта: высота руками (resize:vertical), скролл колёсиком внутри поля.
+ * fitArea сюда не зовём - он сбрасывает height/overflow и отбирает wheel у родителя-формы.
+ */
+function resetAgentBodySize() {
+  const field = $('agentBody');
+  if (!field) return;
+  field.style.height = '';
+  field.style.overflowY = 'auto';
+  field.scrollTop = 0;
+}
+
 const FIT_AREAS = [
   { id: 'text', min: 40, max: () => Math.min(window.innerHeight * 0.4, 360) },
   { id: 'schedPrompt', min: 90, max: () => Math.min(window.innerHeight * 0.35, 320) },
   { id: 'agentAsk', min: 56, max: () => Math.min(window.innerHeight * 0.4, 360) },
-  { id: 'agentBody', min: 160, max: () => Math.min(window.innerHeight * 0.55, 560) },
 ];
 
 function fitText() {
@@ -6497,6 +6650,12 @@ function bindFitAreas() {
     if (!(t instanceof HTMLTextAreaElement) || !t.closest('.settings-field-text')) return;
     fitSettingsArea(t);
   });
+  // Колёсико над ролью не должно крутить #agentForm: иначе длинный текст «не скроллится»
+  const body = $('agentBody');
+  if (body && !body.dataset.wheelBound) {
+    body.dataset.wheelBound = '1';
+    body.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+  }
 }
 
 const fitSettingsArea = (ta) => fitArea(ta, 72, () => Math.min(window.innerHeight * 0.4, 360));
@@ -7310,10 +7469,11 @@ async function scheduleDelete(job) {
 
 async function scheduleSave(force) {
   const expr = updateSchedDescribe();
-  const name = $('schedName').value.trim();
+  const name = L.sanitizeAgentName($('schedName').value);
+  $('schedName').value = name;
   $('schedError').hidden = true;
   $('schedForceSave').hidden = true;
-  if (!L.validScheduleName(name)) return showSchedError(tr('Имя: латиница в нижнем регистре, цифры и дефис, до 31 символа.'));
+  if (!L.validScheduleName(name)) return showSchedError(tr('Имя: только английские буквы (a-z), цифры, _ и -, до 31 символа.'));
   if (!expr) return showSchedError(tr('Расписание не собралось - проверь поля или свой cron.'));
   const prompt = $('schedPrompt').value.trim();
   if (!prompt) return showSchedError(tr('Промпт пустой.'));
