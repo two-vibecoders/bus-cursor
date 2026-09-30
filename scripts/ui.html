@@ -1202,8 +1202,9 @@
   #composer .voice-rec { margin: 0 2px 2px 0; }
   .compose-input { display: block; position: relative; min-width: 0; padding: 0; }
   #composer textarea {
-    field-sizing: content;
+    field-sizing: fixed; /* высоту ставит fitArea: одна строка, дальше растёт, у потолка — скролл */
     min-height: 36px; max-height: min(40vh, 360px);
+    height: 36px;
     resize: none; overflow-y: hidden; line-height: 1.45;
     width: 100%; padding: 8px 6px;
     background: transparent; border: 0; box-shadow: none;
@@ -2819,8 +2820,7 @@
     border: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
-    overflow-y: hidden !important;
-    field-sizing: content;
+    field-sizing: fixed;
   }
   #composer textarea:hover,
   #composer textarea:focus,
@@ -3209,7 +3209,7 @@
           <button type="button" class="voice-rec" id="composerVoiceRec" hidden title="Остановить запись" aria-label="Остановить голосовой ввод"><span class="voice-rec-icon" aria-hidden="true"><svg class="icon"><use href="#i-mic"/></svg></span><span class="voice-rec-label">Голосовой ввод</span></button>
         </div>
         <label class="compose-input wide">
-          <textarea id="text" placeholder="Сообщение" aria-label="Сообщение" aria-autocomplete="list" aria-controls="mentionList" aria-expanded="false"></textarea>
+          <textarea id="text" rows="1" placeholder="Сообщение" aria-label="Сообщение" aria-autocomplete="list" aria-controls="mentionList" aria-expanded="false"></textarea>
           <div class="mention" id="mention" hidden>
             <div class="mention-head" id="mentionHead"></div>
             <div class="mention-list" id="mentionList" role="listbox" aria-label="Файлы проекта"></div>
@@ -6769,9 +6769,9 @@ function fitArea(field, min = 40, max = 360) {
   if (!field) return;
   const lo = typeof min === 'function' ? min() : min;
   const hi = typeof max === 'function' ? max() : max;
-  // Сначала меряем полную высоту контента (при height:auto); после обрезки до hi scrollHeight уже не скажет, нужна ли прокрутка
+  // height:0, не auto: у textarea auto — это rows (часто 2 строки), и поле не сжимается до текста
   field.style.overflowY = 'hidden';
-  field.style.height = 'auto';
+  field.style.height = '0px';
   const content = field.scrollHeight;
   const next = Math.min(Math.max(content, lo), hi);
   field.style.height = `${next}px`;
@@ -6791,13 +6791,13 @@ function resetAgentBodySize() {
 }
 
 const FIT_AREAS = [
-  { id: 'text', min: 40, max: () => Math.min(window.innerHeight * 0.4, 360) },
+  { id: 'text', min: 36, max: () => Math.min(window.innerHeight * 0.4, 360) },
   { id: 'schedPrompt', min: 90, max: () => Math.min(window.innerHeight * 0.35, 320) },
   { id: 'agentAsk', min: 56, max: () => Math.min(window.innerHeight * 0.4, 360) },
 ];
 
 function fitText() {
-  fitArea($('text'), 40, Math.min(window.innerHeight * 0.4, 360));
+  fitArea($('text'), 36, Math.min(window.innerHeight * 0.4, 360));
 }
 
 function fitAllAreas() {
@@ -6823,6 +6823,14 @@ function bindFitAreas() {
   if (body && !body.dataset.wheelBound) {
     body.dataset.wheelBound = '1';
     body.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+  }
+  // Длинное сообщение: колесо крутит поле, а не ленту под композером
+  const text = $('text');
+  if (text && !text.dataset.wheelBound) {
+    text.dataset.wheelBound = '1';
+    text.addEventListener('wheel', (e) => {
+      if (text.scrollHeight > text.clientHeight + 1) e.stopPropagation();
+    }, { passive: true });
   }
 }
 
