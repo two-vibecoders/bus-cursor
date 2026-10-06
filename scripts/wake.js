@@ -47,6 +47,8 @@ const STREAM_ARGS = ['--input-format', 'stream-json', '--output-format', 'stream
 const FIRST_EVENT_MS = Number(process.env.BUS_WAKE_FIRST_EVENT_MS) || 60 * 1000; // claude шлёт system/init через ~1 с; тишина - формат входа не принят
 const BTW_POLL_MS = 1000;
 const EXIT_WAIT_MS = 15 * 1000; // сколько ждём выхода claude после итога и закрытого stdin
+// claude вышел, а его вывод держит отвязавшийся потомок (postgres, dev-сервер, раннер разбуженного агента): close не придёт, пока тот жив
+const EXIT_DRAIN_MS = 3 * 1000;
 const SESSION_ID = /^[0-9a-zA-Z-]{8,64}$/; // id едет в командную строку и в путь, а wake.json может написать кто угодно
 const CONTEXT_EVERY_MS = 2000; // окно контекста в wake-context.json - не чаще: ответ модели в потоке приходит кусками
 const CONTEXT_KEEP = 50; // диалогов в wake-context.json - остальные, самые старые, забываются
@@ -275,6 +277,18 @@ function request(agent, { cwd, by, human = false, messageId = '' }) {
   } catch (e) {
     return { state: 'failed', reason: e.message };
   }
+}
+
+/**
+ * Сторож очереди: сообщения ждут в wake-pending, а раннера нет - он упал или завис, и его лок протух. Будит, как обычный send.
+ * Без pending не трогаем: раннер забрал очередь, а агент inbox не прочёл - повтор только сожжёт токены.
+ */
+function rewake(agent, cwd) {
+  if (!fs.existsSync(pendingFile(agent.box)) || running(agent.box)) return null;
+  const lines = wakeLines(agent.box);
+  if (!lines.length) return null;
+  const by = (/from:([^\s|]+)/.exec(lines[lines.length - 1]) || [])[1] || 'Bus Cursor';
+  return request(agent, { cwd, by });
 }
 
 function startRunner(agent, cwd, by, human, resumeId = '') {
@@ -676,11 +690,24 @@ function runClaude({ cwd, agent = null, model = null, settings: settingsFile = n
       }
     });
     child.stderr.on('data', (chunk) => (stderr = (stderr + chunk).slice(-4000)));
+    let done = false;
     child.on('error', (e) => {
+      if (done) return;
+      done = true;
       settle();
       resolve({ ok: false, ms: Date.now() - started, reason: `claude не запустился: ${e.message}`, report: '', sessionId });
     });
-    child.on('close', (code) => {
+    child.on('exit', (code) => {
+      setTimeout(() => {
+        if (done) return;
+        for (const s of [child.stdin, child.stdout, child.stderr]) s.destroy();
+        complete(code);
+      }, EXIT_DRAIN_MS);
+    });
+    child.on('close', (code) => complete(code));
+    function complete(code) {
+      if (done) return;
+      done = true;
       settle();
       if (stream && !final && buffer.trim()) {
         try {
@@ -707,7 +734,7 @@ function runClaude({ cwd, agent = null, model = null, settings: settingsFile = n
       const why = timedOut ? `таймаут ${Math.round(timeoutMs / 1000)} с` : silent ? `claude молчит ${Math.round(FIRST_EVENT_MS / 1000)} с - не принял вход stream-json? Проверь версию claude` : `claude вернул ошибку (код ${code}): ${(report || stderr || stdout).trim().slice(-200) || 'пустой ответ'}`;
       // context - весь вход вместе с чтением из кэша: столько заняло окно; по нему access-measure.js меряет цену доступа агента
       resolve({ ok, ms: Date.now() - started, tokens, context: (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0), window: ctx.window, usage: usageOf(usage), cost: result.total_cost_usd || 0, reason: ok ? '' : why, report, sessionId });
-    });
+    }
     child.stdin.on('error', () => {});
     if (stream) child.stdin.write(userLine(text));
     else child.stdin.end(text);
@@ -928,7 +955,7 @@ async function run(name, box, cwd, by, human = false, resumeId = '') {
   if (seen && wakeLines(box).some((line) => !seen.includes(line))) request({ name, box }, { cwd, by });
 }
 
-module.exports = { liveEntries, streamContext, contexts, runs, RUN_ID, perHourOf, enabled, setEnabled, request, stop, resume, queueBtw, setEvolve, dropEvolve, proposal, dropProposal, bodyHash, state, running, runClaude, runAgent, alive, freshBlank, readJson, writeJson, isFast, setFast, hasRules, setRules, headlessSettings, RUNTIMES, runtimeOf, setRuntime, cursorModelOf, setCursorModel, pickRuntime };
+module.exports = { liveEntries, streamContext, contexts, runs, RUN_ID, perHourOf, enabled, setEnabled, request, rewake, stop, resume, queueBtw, setEvolve, dropEvolve, proposal, dropProposal, bodyHash, state, running, runClaude, runAgent, alive, freshBlank, readJson, writeJson, isFast, setFast, hasRules, setRules, headlessSettings, RUNTIMES, runtimeOf, setRuntime, cursorModelOf, setCursorModel, pickRuntime };
 
 if (require.main === module && process.argv[2] === 'run') {
   const [name, box, cwd, by, human, resumeId] = process.argv.slice(3);

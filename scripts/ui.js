@@ -48,6 +48,7 @@ const DEFAULT_PORT = 4781; // Claude Bus держит 4780: свой порт, �
 const PORT_TRIES = 20;
 const APP = 'bus-cursor-ui'; // /api/ping: чужой bus-ui (Claude Bus) - занятый порт, не «наш» сервер
 const POLL_MS = 1000;
+const SWEEP_MS = 60 * 1000; // сторож автоподъёма - см. sweepWakes
 const LIVE_LINES = 30; // сколько последних строк живого хода агента едет на страницу
 const HEARTBEAT_MS = 25000; // комментарий в SSE-поток: без него прокси и браузер считают соединение мёртвым
 const IDLE_EXIT_MS = 15 * 60 * 1000;
@@ -2449,6 +2450,7 @@ async function start(args = []) {
     rememberServer(port);
     console.log(`UI: ${url} - каталог ${cwd}. Остановить: Ctrl+C; ${appMode ? `закроешь окно - погаснет сразу` : `без открытой вкладки сам погаснет через ${IDLE_EXIT_MS / 60000} мин`}.`);
     updateTimers();
+    setInterval(sweepWakes, SWEEP_MS).unref();
     rateLimits.refresh().catch(() => {});
     cursorModels.refresh().catch(() => {});
     if (open) show(url);
@@ -2465,6 +2467,30 @@ async function start(args = []) {
     return;
   }
   throw new bus.BusError(`Порты ${wanted}-${wanted + PORT_TRIES - 1} заняты. Укажи свободный: bus.js ui --port <N>`);
+}
+
+/**
+ * Сторож автоподъёма (wake.rewake): сообщение пришло, пока агент был занят, а его раннер так и не закончил - ответ лежал бы
+ * до следующего сообщения пользователя. Только агенты проектов: каталог запуска глобального агента здесь не угадать.
+ */
+function sweepWakes() {
+  try {
+    const globals = bus.loadRegistry(bus.REGISTRY);
+    const plain = bus.contextOf(null, globals);
+    for (const name of Object.keys(globals)) {
+      const project = bus.describe(plain, name);
+      if (!project || project.kind !== 'project' || !fs.existsSync(project.root)) continue;
+      const ctx = bus.contextOf(project.root, globals);
+      for (const local of Object.keys(ctx.locals)) {
+        const agent = bus.describe(ctx, local);
+        if (!agent || !bus.isSubagent(agent) || !agent.box) continue;
+        const r = wake.rewake(agent, project.root);
+        if (r && r.state === 'started') console.log(`сторож: поднял ${agent.name} (${project.root}) - сообщения ждали в очереди`);
+      }
+    }
+  } catch (e) {
+    if (!(e instanceof bus.BusError)) console.error(`сторож автоподъёма: ${e.message}`);
+  }
 }
 
 /** Не запускали `bus.js setup` после установки - хук inbox и ярлык ставит первый старт UI (bus.setup). */

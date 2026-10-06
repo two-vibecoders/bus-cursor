@@ -25,6 +25,9 @@ const READONLY_ARGS = ['-p', '--trust', '--mode', 'ask', '--output-format', 'str
 const PROMPT_TTL_MS = 3 * 60 * 60 * 1000; // дольше запуск не живёт (таймаут до 120 мин) - старше этого файл промпта остался от снятого stop-ом
 const FIRST_EVENT_MS = Number(process.env.BUS_WAKE_FIRST_EVENT_MS) || 60 * 1000;
 const EXIT_WAIT_MS = 15 * 1000;
+// Агент вышел, а его вывод держит открытым отвязавшийся потомок (postgres, dev-сервер, раннер разбуженного агента):
+// close не придёт, пока тот жив. Дочитываем хвост и закрываем трубы сами
+const EXIT_DRAIN_MS = 3 * 1000;
 const SESSION_ID = /^[0-9a-zA-Z-]{8,64}$/;
 const RUN_ID = /^[0-9a-z]{4,20}-[0-9a-z]{2,10}$/;
 const CHARS_PER_TOKEN = 4;
@@ -199,14 +202,27 @@ function run({ cwd, agent = null, role = '', model = null, prompt: text, timeout
       }
     });
     child.stderr.on('data', (chunk) => (stderr = (stderr + chunk).slice(-4000)));
+    let done = false;
     const finish = (result) => {
+      if (done) return;
+      done = true;
       [...timers, firstEvent].forEach((t) => clearTimeout(t));
       fs.rmSync(file, { force: true });
       report(true);
       resolve(result);
     };
     child.on('error', (e) => finish({ ok: false, ms: Date.now() - started, tokens: 0, context: 0, window: 0, usage: usage(), cost: 0, reason: /ENOENT|not found/i.test(e.message) ? missingHint() : `Cursor (${cmd}) не запустился: ${e.message}`, report: '', sessionId, model: billingModel, ...(routedModel && routedModel !== billingModel ? { routed: routedModel } : {}) }));
-    child.on('close', (code) => {
+    child.on('exit', (code) => {
+      setTimeout(() => {
+        if (done) return;
+        child.stdout.destroy();
+        child.stderr.destroy();
+        complete(code);
+      }, EXIT_DRAIN_MS);
+    });
+    child.on('close', (code) => complete(code));
+    function complete(code) {
+      if (done) return;
       if (!final && buffer.trim()) {
         try {
           const last = JSON.parse(buffer);
@@ -233,7 +249,7 @@ function run({ cwd, agent = null, role = '', model = null, prompt: text, timeout
         reason: ok ? '' : why, report: text, sessionId, model: billingModel,
         ...(routedModel && routedModel !== billingModel ? { routed: routedModel } : {}),
       });
-    });
+    }
     child.stdin.on('error', () => {});
     child.stdin.end();
   });
