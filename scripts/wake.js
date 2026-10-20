@@ -259,9 +259,12 @@ function dropSession(cwd, id, runtime = 'claude') {
  * messageId - id доставленного сообщения: с него начнётся ближайший круг раннера, UI вешает на него отметку запуска (trigger в wake.json).
  * → { state: 'started' | 'busy' | 'limit' | 'off' | 'failed', reason? }. busy - агент уже работает и новое сообщение заберёт сам.
  */
-function request(agent, { cwd, by, human = false, messageId = '' }) {
+/**
+ * force - ручной подъём из UI: обходит рубильник autowake / wake.enabled. Человек сам нажал «поднять» у «ждёт подъёма».
+ */
+function request(agent, { cwd, by, human = false, messageId = '', force = false }) {
   const limits = settings.get(cwd);
-  if (!enabled(cwd, limits)) return { state: 'off' };
+  if (!force && !enabled(cwd, limits)) return { state: 'off' };
   if (messageId) appendLine(pendingFile(agent.box), messageId);
   if (running(agent.box)) return { state: 'busy' };
   flushBtw(agent.box); // очередь пережила раннер (его убили) - сообщения уходят в inbox, их заберёт этот подъём

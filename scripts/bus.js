@@ -1424,9 +1424,9 @@ function orchestratorOf(root) {
  * messageId - id доставленного сообщения: UI повесит на него отметку запуска (trigger в wake.json).
  * → { state: started | busy | limit | off | failed, reason?, ring: имя оркестратора, которому ушёл звонок, или null }
  */
-function autoWake(from, to, what, { here = null, ringSelf = false, human = false, messageId = '' } = {}) {
+function autoWake(from, to, what, { here = null, ringSelf = false, human = false, messageId = '', force = false } = {}) {
   const root = to.root || from.root || here;
-  const r = require('./wake.js').request(to, { cwd: root || os.homedir(), by: from.name, human, messageId });
+  const r = require('./wake.js').request(to, { cwd: root || os.homedir(), by: from.name, human, messageId, force });
   if (r.state === 'started' || r.state === 'busy') return { ...r, ring: null };
   const orchestrator = orchestratorOf(root);
   const ring = Boolean(orchestrator && (ringSelf || orchestrator.name !== from.name));

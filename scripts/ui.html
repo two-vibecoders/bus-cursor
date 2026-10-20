@@ -633,6 +633,17 @@
   .agent .kind { display: block; font-size: 11px; line-height: 1.35; color: var(--ink-soft); margin-top: 1px; }
   .agent .note { display: block; } /* строкой, а не через «·»: точка повисала в конце строки при переносе */
   .agent .note.wait, .agent .note.load { color: var(--copper); }
+  .agent .note.has-wake { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; }
+  .agent .note.has-wake .note-text { min-width: 0; }
+  .agent-wake {
+    flex: none; display: inline-grid; place-items: center;
+    width: 18px; height: 18px; padding: 0; border: 0; border-radius: var(--r-xs);
+    background: var(--copper-soft); color: var(--copper); cursor: pointer;
+    transition: color .2s, background-color .2s, transform .3s var(--ease);
+  }
+  .agent-wake .icon { width: 11px; height: 11px; }
+  .agent-wake:hover, .agent-wake:focus-visible { color: var(--on-copper); background: var(--copper); transform: scale(1.08); }
+  .agent-wake.disabled, .agent-wake[aria-disabled="true"] { opacity: .45; cursor: wait; transform: none; pointer-events: none; }
   .agent .note.run { color: var(--done); font-weight: 600; }
   .agent .note.bad { color: var(--danger); }
   .agent .badge { margin-top: 0; align-self: center; font: 700 11px/18px var(--label); min-width: 18px; height: 18px; text-align: center; background: radial-gradient(120% 140% at 20% 10%, var(--copper-hi), var(--copper) 70%); color: var(--on-copper); border-radius: 999px; padding: 0 5px; box-shadow: 0 0 12px -2px var(--copper-glow); animation: pop-in .35s var(--ease); }
@@ -2415,6 +2426,17 @@
     background: var(--copper-soft) !important;
     transform: none !important;
   }
+  .agent-wake {
+    width: 18px !important; height: 18px !important;
+    border-radius: var(--r-xs) !important;
+    background: var(--copper-soft) !important;
+    color: var(--copper) !important;
+  }
+  .agent-wake:hover, .agent-wake:focus-visible {
+    color: var(--on-copper) !important;
+    background: var(--copper) !important;
+    transform: none !important;
+  }
   .agent-row.dragging { opacity: .4 !important; }
   .agent-row.drag-over-before { box-shadow: inset 0 2px 0 var(--copper) !important; }
   .agent-row.drag-over-after { box-shadow: inset 0 -2px 0 var(--copper) !important; }
@@ -3802,11 +3824,42 @@ function agentButton(agent, fresh, me, group = 'here') {
   const face = agent.icon
     ? el('img', { className: 'avatar', src: `/avatars/${agent.icon}.png`, alt: '', width: 22, height: 22, draggable: false })
     : el('span', { className: 'wire' });
+  const notes = listNotes.map((n) => {
+    if (n.action !== 'wake') return el('span', { className: `note ${n.tone}`, title: n.title || '' }, n.text);
+    // Иконка - сосед текста, не вложенная кнопка: клик не выбирает агента (stopPropagation), подъём - /api/wake
+    const wakeBtn = el('span', {
+      className: 'agent-wake',
+      role: 'button',
+      tabIndex: 0,
+      title: tr('Поднять сейчас'),
+      ariaLabel: tr('Поднять {name} сейчас', { name: agent.name }),
+    }, icon('play'));
+    const go = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (wakeBtn.getAttribute('aria-disabled') === 'true') return;
+      wakeBtn.setAttribute('aria-disabled', 'true');
+      wakeBtn.classList.add('disabled');
+      try {
+        const r = await post('/api/wake', { key: agent.key });
+        say(L.raisedNote(r), r.auto !== 'started' && r.auto !== 'busy');
+      } catch (err) {
+        say(err.message, true);
+        wakeBtn.removeAttribute('aria-disabled');
+        wakeBtn.classList.remove('disabled');
+      }
+    };
+    wakeBtn.addEventListener('click', go);
+    wakeBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') go(e);
+    });
+    return el('span', { className: `note ${n.tone} has-wake`, title: n.title || '' }, el('span', { className: 'note-text' }, n.text), wakeBtn);
+  });
   const button = el('button', { type: 'button', className: `agent${agent.registered ? '' : ' off'}${agent.alive ? '' : ' gone'}${status.busy ? ' running' : ''}`, title: agent.description ? `${agent.description}\n${agent.where}` : agent.where },
     face,
     el('span', {},
       el('span', { className: 'name' }, el('span', { className: 'agent-name' }, agent.name), errIcon),
-      el('span', { className: 'kind' }, status.label, ...listNotes.map((n) => el('span', { className: `note ${n.tone}`, title: n.title || '' }, n.text)), status.busy ? liveLastNode(agent.key) : '')),
+      el('span', { className: 'kind' }, status.label, ...notes, status.busy ? liveLastNode(agent.key) : '')),
     // Медный - ответы пользователю: открой диалог, и они прочитаны. У своего оркестратора бейджа нет: в его ящике эти же ответы
     replies ? el('span', { className: 'badge', title: tr('тебе ответил - открой диалог, и прочитано') }, String(replies)) : '',
     agent.unread && !status.mine ? el('span', { className: 'badge wait', title: tr('лежит в его inbox') }, String(agent.unread)) : '');
@@ -3816,7 +3869,7 @@ function agentButton(agent, fresh, me, group = 'here') {
   button.setAttribute('aria-pressed', String(filters.agents.has(agent.key)));
   button.draggable = true;
   button.addEventListener('click', (e) => {
-    if (suppressAgentClick) { e.preventDefault(); e.stopPropagation(); return; }
+    if (suppressAgentClick || e.target.closest('.agent-wake')) { e.preventDefault(); e.stopPropagation(); return; }
     pickAgent(agent, e);
   });
   const boss = agent.kind === 'project';
@@ -3875,7 +3928,7 @@ function clearAgentDragMarks() {
 
 function bindAgentDrag(row, button, agent, group) {
   const start = (e) => {
-    if (e.target.closest('.agent-edit')) { e.preventDefault(); return; }
+    if (e.target.closest('.agent-edit, .agent-wake')) { e.preventDefault(); return; }
     agentDrag = { key: agent.key, group };
     row.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';

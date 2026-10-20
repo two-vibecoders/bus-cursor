@@ -355,7 +355,8 @@
    * Подпись агента в списке. Чужое непрочитанное никто не «не читает»: субагент заберёт его при подъёме, проект - на следующем
    * промпте. У оркестратора этого каталога подписи нет: в его ящике ответы пользователю, они горят медью на ответившем агенте.
    * load - вес несжатой переписки агента в токенах.
-   * → { label, notes: [{ tone: wait | run | ok | bad | load, text, title? }], busy, mine }
+   * → { label, notes: [{ tone: wait | run | ok | bad | load, text, title?, action?: wake }], busy, mine }
+   * action wake - у субагента с непрочитанным: в списке иконка ручного подъёма.
    */
   function agentStatus(agent, load = 0) {
     const mine = Boolean(agent.orchestrator && agent.here);
@@ -365,7 +366,11 @@
     // wraps - локальная обёртка над глобальной ролью: роль одна на все проекты, в каталоге только переписка
     const label = (!agent.registered ? (agent.blocked ? tr('не в шине · писать нельзя') : tr('не в шине · заведётся при первом сообщении')) : agent.orchestrator && agent.here ? tr('оркестратор · пишешь от его имени') : agent.wraps ? tr('глобальный · переписка в проекте') : tr(KIND_LABEL[agent.kind])) + (agent.registered && agent.runtime === 'cursor' ? ' · Cursor' : '') + (agent.alive ? '' : tr(' · нет на диске'));
     const notes = [];
-    if (agent.unread && !busy && !mine) notes.push({ tone: 'wait', text: sub ? tr('ждёт подъёма: {n}', { n: agent.unread }) : tr('увидит на следующем промпте: {n}', { n: agent.unread }) });
+    if (agent.unread && !busy && !mine) {
+      notes.push(sub
+        ? { tone: 'wait', text: tr('ждёт подъёма: {n}', { n: agent.unread }), action: 'wake', title: tr('Сообщение в inbox - подними агента иконкой рядом') }
+        : { tone: 'wait', text: tr('увидит на следующем промпте: {n}', { n: agent.unread }) });
+    }
     if (busy) notes.push({ tone: 'run', text: tr('работает…') });
     else if (w && w.state === 'stopped') notes.push({ tone: 'wait', text: tr('остановлен {at}', { at: clock(w.at) }), title: tr('Остановил {by}. Продолжить - кнопкой на сообщении, с которого он начал', { by: w.stoppedBy || '?' }) });
     else if (w && w.state === 'ok') notes.push({ tone: 'ok', text: tr('ответил {at}', { at: clock(w.at) }) + (w.tokens ? tr(' · ≈{n} ток.', { n: short(w.tokens) }) : ''), title: tr('Фоновый подъём: {sec} с, разбудил {by}. За час подъёмов: {wakes}', { sec: Math.round((w.ms || 0) / 1000), by: w.by, wakes: w.wakes }) });

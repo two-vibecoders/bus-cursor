@@ -1053,11 +1053,12 @@ function resolveAgent(key, snapshot) {
 /**
  * Поднять субагента в фоне (bus.autoWake → wake.js); глобальному агенту каталогом служит каталог UI.
  * messageId - на это сообщение страница повесит отметку запуска.
+ * force - ручной клик «поднять» в списке: обходит выключенный автоподъём.
  * Не вышло - bus сам кладёт звонок оркестратору. → { auto: started|busy|limit|off|failed, reason, wake: кому ушёл звонок }
  */
-function raise(snapshot, from, to, what, messageId) {
+function raise(snapshot, from, to, what, messageId, force = false) {
   // ringSelf: отправитель - сам оркестратор, но его сессия про сообщение из UI не знает; без звонка агент остался бы лежать
-  const r = bus.autoWake(from, to, what, { here: snapshot.here.root || cwd, ringSelf: true, human: true, messageId });
+  const r = bus.autoWake(from, to, what, { here: snapshot.here.root || cwd, ringSelf: true, human: true, messageId, force });
   return { auto: r.state, reason: r.reason || '', wake: r.ring };
 }
 
@@ -1074,6 +1075,21 @@ function wakeAction(action, { key }) {
   if (action === 'resume') bus.requireAlive(agent);
   const r = action === 'stop' ? wake.stop(agent.box, from.name) : wake.resume(agent, { cwd: agent.root || snapshot.here.root || cwd, by: from.name });
   return { ok: true, ...r };
+}
+
+/**
+ * Иконка «поднять» у «ждёт подъёма» в списке агентов. Inbox уже есть - нового сообщения не пишем, только фон.
+ * → { ok, to, auto, reason, wake } - как у raise, плюс to для raisedNote на странице.
+ */
+function wakeFromPage({ key }) {
+  const snapshot = collectAgents();
+  const entry = snapshot.agents.find((a) => a.key === String(key || ''));
+  const agent = entry && resolveAgent(entry.key, snapshot);
+  if (!agent || !bus.isSubagent(agent)) throw new bus.BusError(tr('Такого агента в шине нет.'));
+  bus.requireAlive(agent);
+  if (!bus.unread(agent)) throw new bus.BusError(tr('В inbox пусто - поднимать нечего.'));
+  const from = senderOf(entry, snapshot);
+  return { ok: true, to: agent.name, ...raise(snapshot, from, agent, 'TASK', '', true) };
 }
 
 /**
@@ -2253,6 +2269,11 @@ async function handle(req, res, port) {
     }
     if (url.pathname === '/api/stop' || url.pathname === '/api/resume') {
       const result = wakeAction(url.pathname.slice('/api/'.length), body);
+      safeTick();
+      return reply(res, 200, result);
+    }
+    if (url.pathname === '/api/wake') {
+      const result = wakeFromPage(body);
       safeTick();
       return reply(res, 200, result);
     }
