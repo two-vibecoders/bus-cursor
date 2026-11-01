@@ -25,27 +25,20 @@
 
 **Bus Cursor** is a file-based message bus between Cursor agents and the user: messages stay in inboxes until they are read. Address agents by **name**, use types `TASK` · `QUESTION` · `DONE`, and wake agents in the background via Cursor CLI (`agent -p`).
 
-It is an adaptation of [claude-bus](https://github.com/jtapes/claude-bus) (Claude Code) for Cursor IDE. The Claude Code counterpart in this org is [bus-claude](https://github.com/two-vibecoders/bus-claude).
-
-| | |
-|---|---|
-| Original | [jtapes/claude-bus](https://github.com/jtapes/claude-bus) · [JTapes](https://github.com/jtapes) |
-| Claude Code (org) | [two-vibecoders/bus-claude](https://github.com/two-vibecoders/bus-claude) |
-| Cursor port | [SafonovAG](https://github.com/SafonovAG) · [two-vibecoders/bus-cursor](https://github.com/two-vibecoders/bus-cursor) |
-
 Current version: see [`release.json`](release.json) and [GitHub Releases](https://github.com/two-vibecoders/bus-cursor/releases).
 
 ## Features
 
-- **UI** — dialog feed, agents sidebar, composer with attachments and `@` project files
-- **Roles** — create and edit agents, checkbox access, “Rewrite with AI”
-- **Background runs** — agents wake via `agent -p`; live transcript, stop / resume, btw
-- **Dialogs** — tabs, compress to summary, closed history
-- **Schedule** — cron jobs (scheduler daemon)
-- **Cursor limits** — Auto / API / Grok Bot in the header (same as Cursor account Usage)
-- **UI prefs** — light / dark theme, Russian / English, video background
-- **About** — version, update check, repository links
-- **Updates** — header button when a newer GitHub release is available (`release.json` required)
+- **UI** - dialog feed, agents sidebar, composer with attachments and `@` project files
+- **Roles** - create and edit agents, checkbox access, “Rewrite with AI”
+- **Background runs** - agents wake via `agent -p`; live transcript, stop / resume, btw
+- **Dialogs** - tabs, compress to summary, closed history
+- **Kanban** - a separate workspace: columns with agents, drag-and-drop cards, verify loop with a checker
+- **Schedule** - cron jobs (scheduler daemon)
+- **Cursor limits** - Auto / API / Grok Bot in the header (same as Cursor account Usage)
+- **UI prefs** - light / dark theme, Russian / English, video background
+- **About** - version, update check, repository link
+- **Updates** - header button when a newer GitHub release is available (`release.json` required)
 
 ## Requirements
 
@@ -53,14 +46,14 @@ Current version: see [`release.json`](release.json) and [GitHub Releases](https:
 - [Cursor](https://cursor.com/) IDE
 - [Cursor CLI](https://cursor.com/docs/cli/overview) (`agent`)
 
-Windows — CLI:
+Windows - CLI:
 
 ```powershell
 irm 'https://cursor.com/install?win32=true' | iex
 agent login
 ```
 
-macOS / Linux — see [Cursor CLI docs](https://cursor.com/docs/cli/overview), then `agent login`.
+macOS / Linux - see [Cursor CLI docs](https://cursor.com/docs/cli/overview), then `agent login`.
 
 ## Installation
 
@@ -102,7 +95,7 @@ node ~/.cursor/skills/bus-cursor/scripts/bus.js ui --app
 `--app` opens a dedicated Chrome/Edge window (no tabs). Without it, a normal browser tab is used (`127.0.0.1:4781`, or the next free port).
 
 1. Pick a Cursor project folder in the header  
-2. **New agent** — name, role, model  
+2. **New agent** - name, role, model  
 3. Send a `TASK` or `QUESTION`  
 
 Recreate the shortcut: Settings (⚙) or `bus.js ui --shortcut`.
@@ -152,17 +145,16 @@ The skill responds to prompts like “open Bus Cursor”, “what’s in the inb
 
 ## Documentation
 
-- [`SKILL.md`](SKILL.md) — short skill brief for Cursor  
-- [`references/cursor.md`](references/cursor.md) — Cursor IDE and CLI  
-- [`references/roles.md`](references/roles.md) — roles and access  
-- [`references/ui.md`](references/ui.md) — UI behavior  
-- [`references/schedule.md`](references/schedule.md) — scheduling  
-- [`references/admin.md`](references/admin.md) — orchestrator commands  
+- [`SKILL.md`](SKILL.md) - short skill brief for Cursor  
+- [`references/cursor.md`](references/cursor.md) - Cursor IDE and CLI  
+- [`references/roles.md`](references/roles.md) - roles and access  
+- [`references/ui.md`](references/ui.md) - UI behavior  
+- [`references/schedule.md`](references/schedule.md) - scheduling  
+- [`references/admin.md`](references/admin.md) - orchestrator commands  
 
 ## Authors
 
-- [JTapes](https://github.com/jtapes) — [claude-bus](https://github.com/jtapes/claude-bus)  
-- [SafonovAG](https://github.com/SafonovAG) — Cursor port; org [two-vibecoders](https://github.com/two-vibecoders) ([bus-cursor](https://github.com/two-vibecoders/bus-cursor), [bus-claude](https://github.com/two-vibecoders/bus-claude))  
+- [SafonovAG](https://github.com/SafonovAG) · org [two-vibecoders](https://github.com/two-vibecoders)  
 
 ---
 

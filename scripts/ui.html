@@ -1369,216 +1369,405 @@
   .sched-badge.alert { background: var(--copper); color: var(--on-copper); box-shadow: 0 0 10px var(--copper-glow); }
   #scheduleBtn.alert, #kanbanBtn.alert { border-color: var(--copper); color: var(--copper); }
 
-  /* ---- канбан: полноэкранная страница ---- */
+  /* ---- канбан: отдельное полноэкранное пространство ---- */
+  @property --kb-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+  .t-open { --kb-t: color-mix(in srgb, var(--ink-soft) 75%, transparent); }
+  .t-run { --kb-t: var(--copper); }
+  .t-bad { --kb-t: var(--danger); }
+  .t-ask { --kb-t: var(--amber); }
+  .t-done { --kb-t: var(--done); }
   .kanban-page {
     position: fixed; inset: 0; z-index: 40;
     display: flex; flex-direction: column; min-height: 0;
     background: var(--bg);
-    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
-    animation: kanban-in .42s var(--ease);
+    animation: kb-page-in .45s var(--ease);
   }
   .kanban-page[hidden] { display: none !important; }
-  @keyframes kanban-in {
-    from { opacity: 0; transform: translateY(14px) scale(.988); }
-    to { opacity: 1; transform: none; }
-  }
-  .kanban-top {
-    flex: none; display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap;
-    padding: 14px 22px; border-bottom: 1px solid var(--line);
-    background: var(--glass-1); box-shadow: var(--shadow);
-    position: relative;
-  }
-  .kanban-top::after {
-    content: ""; position: absolute; left: 22px; right: 22px; bottom: -1px; height: 1px;
-    background: linear-gradient(90deg, transparent, var(--copper-glow), transparent);
-    pointer-events: none;
-  }
-  .kanban-brand { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 180px; }
-  .kanban-brand b {
-    font: 700 20px/1.15 var(--label); letter-spacing: -.02em;
-    background: linear-gradient(120deg, var(--ink) 40%, color-mix(in srgb, var(--copper) 70%, var(--ink)));
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  .kanban-brand span { font-size: 12px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52vw; }
-  .kanban-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .kanban-actions .send { min-height: var(--h); box-shadow: 0 0 0 0 transparent; transition: box-shadow .25s var(--ease), transform .2s var(--ease); }
-  .kanban-actions .send:hover { box-shadow: 0 0 18px -6px var(--copper-glow); transform: translateY(-1px); }
-  .kanban-actions .ghost { transition: border-color .2s, color .2s, transform .2s var(--ease); }
-  .kanban-actions .ghost:hover { transform: translateY(-1px); }
-  .kanban-stage {
-    flex: 1; min-height: 0; display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    position: relative;
+  .kanban-page::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
     background:
-      radial-gradient(900px 420px at 12% -10%, color-mix(in srgb, var(--copper) 10%, transparent), transparent 60%),
-      radial-gradient(700px 380px at 88% 110%, color-mix(in srgb, var(--question) 8%, transparent), transparent 55%),
-      var(--bg);
+      radial-gradient(1100px 560px at 6% -14%, color-mix(in srgb, var(--copper) 15%, transparent), transparent 62%),
+      radial-gradient(900px 520px at 98% 114%, color-mix(in srgb, var(--question) 12%, transparent), transparent 60%),
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 8%, transparent) 1px, transparent 0) 0 0 / 22px 22px;
   }
+  body.kanban-open .layout, body.kanban-open .top { pointer-events: none; visibility: hidden; }
+
+  .kb-top {
+    position: relative; z-index: 3; flex: none;
+    display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap;
+    padding: 10px 16px 10px 18px;
+    background: color-mix(in srgb, var(--panel) 80%, transparent);
+    -webkit-backdrop-filter: blur(16px) saturate(150%); backdrop-filter: blur(16px) saturate(150%);
+    border-bottom: 1px solid var(--line);
+  }
+  .kb-top::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--copper-glow), color-mix(in srgb, var(--question) 40%, transparent), transparent) 0 0 / 200% 100%;
+    animation: kb-sheen 7s linear infinite;
+  }
+  .kb-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .kb-logo {
+    width: 34px; height: 34px; flex: none; border-radius: 11px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--copper), color-mix(in srgb, var(--copper) 45%, var(--question)));
+    color: var(--on-copper); box-shadow: 0 8px 20px -8px var(--copper-glow), inset 0 1px 0 #ffffff40;
+  }
+  .kb-logo .icon { width: 18px; height: 18px; }
+  .kb-brand-text { display: grid; gap: 2px; min-width: 0; }
+  .kb-brand-text b { font: 700 16px/1.15 var(--label); letter-spacing: -.01em; }
+  .kb-brand-text span { font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30vw; }
+  .kb-stats { display: flex; gap: 6px; flex-wrap: wrap; }
+  .kb-stat {
+    display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
+    border-radius: 999px; background: var(--glass-2); border: 1px solid var(--line);
+    font: 500 12px/1 var(--body); color: var(--ink-soft); transition: opacity .3s, border-color .3s;
+  }
+  .kb-stat b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kb-stat i { width: 7px; height: 7px; border-radius: 50%; background: var(--kb-t, var(--copper)); }
+  .kb-stat.zero { opacity: .55; }
+  .kb-stat.t-run:not(.zero) i { box-shadow: 0 0 8px var(--kb-t); animation: kb-breathe 1.6s ease-in-out infinite; }
+  .kb-stat.t-bad:not(.zero) { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+  .kb-spacer { flex: 1; }
+  .kb-search {
+    display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; width: 190px;
+    border-radius: 999px; background: var(--field); border: 1px solid transparent;
+    transition: width .35s var(--ease), border-color .2s, box-shadow .25s;
+  }
+  .kb-search:focus-within { width: 260px; border-color: color-mix(in srgb, var(--copper) 70%, transparent); box-shadow: 0 0 0 3px var(--copper-soft); }
+  .kb-search .icon { width: 14px; height: 14px; color: var(--ink-soft); }
+  .kb-search input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 13px; padding: 0; }
+  .kb-search input::-webkit-search-cancel-button { display: none; }
+  .kb-actions { display: flex; gap: 6px; align-items: center; }
+
+  .kb-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 13px;
+    border-radius: 999px; border: 1px solid var(--line); background: var(--glass-1); color: var(--ink);
+    font: 600 12.5px/1 var(--body); white-space: nowrap;
+    transition: transform .2s var(--ease), background-color .2s, border-color .2s, box-shadow .25s, color .2s;
+  }
+  .kb-btn .icon { width: 14px; height: 14px; }
+  .kb-btn:hover:not(:disabled) { border-color: var(--line-strong); background: var(--glass-2); transform: translateY(-1px); }
+  .kb-btn:active:not(:disabled) { transform: scale(.96); }
+  .kb-btn:disabled { opacity: .55; cursor: default; }
+  .kb-btn.primary {
+    border-color: transparent; color: var(--on-copper);
+    background: linear-gradient(135deg, var(--copper), var(--copper-hi));
+    box-shadow: 0 8px 20px -10px var(--copper-glow), inset 0 1px 0 #ffffff33;
+  }
+  .kb-btn.primary:hover:not(:disabled) { background: linear-gradient(135deg, var(--copper-hi), var(--copper)); box-shadow: 0 12px 26px -10px var(--copper-glow); }
+  .kb-btn.danger { color: var(--danger); border-color: transparent; background: none; }
+  .kb-btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 10%, transparent); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
+  .kb-btn.danger.confirm { background: var(--danger); color: var(--on-danger); animation: kb-bump .35s var(--ease); }
+  .kb-btn.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+  .kb-btn.busy .icon { animation: spin .8s linear infinite; }
+  .kb-icon {
+    width: 32px; height: 32px; flex: none; display: grid; place-items: center; padding: 0;
+    border-radius: 50%; border: 0; background: none; color: var(--ink-soft);
+    transition: background-color .2s, color .2s, transform .35s var(--ease);
+  }
+  .kb-icon:hover { background: var(--glass-2); color: var(--ink); }
+  .kb-icon.kb-close:hover { transform: rotate(90deg); color: var(--danger); }
+  .kb-mini {
+    width: 26px; height: 26px; flex: none; display: grid; place-items: center; padding: 0;
+    border: 0; border-radius: 8px; background: none; color: var(--ink-soft);
+    transition: background-color .2s, color .2s, transform .2s var(--ease);
+  }
+  .kb-mini:hover { background: var(--glass-2); color: var(--ink); transform: scale(1.08); }
+  .kb-mini .icon { width: 14px; height: 14px; }
+
   .kanban-board {
-    min-width: 0; min-height: 0; height: 100%;
-    overflow-x: auto; overflow-y: hidden;
-    display: flex; gap: 16px; align-items: stretch;
-    padding: 22px 22px 28px;
-    scroll-behavior: smooth;
-    scrollbar-width: thin;
-    overscroll-behavior-x: contain;
+    position: relative; z-index: 1; flex: 1; min-height: 0;
+    display: flex; gap: 14px; align-items: stretch;
+    overflow-x: auto; overflow-y: hidden; padding: 18px 18px 20px;
+    scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--copper) 45%, transparent) transparent;
+    overscroll-behavior-x: contain; outline: none;
   }
-  .kanban-board:focus-visible { outline: 2px solid var(--copper); outline-offset: -4px; border-radius: var(--r); }
-  .kanban-board::-webkit-scrollbar { height: 9px; }
-  .kanban-board::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--copper) 35%, var(--line-strong));
-    border-radius: 999px;
+  .kb-void {
+    margin: auto; display: grid; justify-items: center; gap: 8px; padding: 40px 36px; max-width: 380px; text-align: center;
+    border: 1.5px dashed var(--line-strong); border-radius: 22px; color: var(--ink-soft);
+    background: color-mix(in srgb, var(--glass-1) 60%, transparent); animation: kb-pop .5s var(--ease);
   }
-  .kanban-board::-webkit-scrollbar-track { background: transparent; }
-  .kanban-col {
-    flex: 0 0 clamp(268px, 24vw, 340px);
-    display: flex; flex-direction: column; min-height: 0; height: 100%;
-    background: var(--glass-1); border: 1px solid var(--line); border-radius: var(--r-lg);
-    box-shadow: var(--shadow-lift);
-    transition: border-color .22s, box-shadow .28s var(--ease), transform .28s var(--ease);
-    animation: kanban-col-in .5s var(--ease) backwards;
-    position: relative; overflow: hidden;
+  .kb-void .icon { width: 28px; height: 28px; color: var(--copper); }
+  .kb-void b { color: var(--ink); font: 700 15px var(--label); }
+
+  .kb-col {
+    --kb-c: var(--copper);
+    position: relative; flex: 0 0 300px; width: 300px; min-height: 0;
+    display: flex; flex-direction: column;
+    background: color-mix(in srgb, var(--panel) 74%, transparent);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    border: 1px solid var(--line); border-radius: 18px;
+    transition: border-color .25s, box-shadow .35s var(--ease), background-color .25s;
   }
-  .kanban-col::before {
-    content: ""; position: absolute; inset: 0 0 auto 0; height: 2px;
-    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--copper) 55%, transparent), transparent);
-    opacity: .55; pointer-events: none;
+  .kb-col::before {
+    content: ""; position: absolute; left: 16px; right: 16px; top: -1px; height: 2px; border-radius: 0 0 3px 3px;
+    background: linear-gradient(90deg, transparent, var(--kb-c), transparent); opacity: .85; transition: left .35s var(--ease), right .35s var(--ease);
   }
-  .kanban-col:nth-child(1) { animation-delay: .02s; }
-  .kanban-col:nth-child(2) { animation-delay: .07s; }
-  .kanban-col:nth-child(3) { animation-delay: .12s; }
-  .kanban-col:nth-child(4) { animation-delay: .17s; }
-  .kanban-col:nth-child(5) { animation-delay: .22s; }
-  .kanban-col:nth-child(n+6) { animation-delay: .27s; }
-  @keyframes kanban-col-in {
-    from { opacity: 0; transform: translateY(18px) scale(.985); }
-    to { opacity: 1; transform: none; }
+  .kb-col:hover { border-color: color-mix(in srgb, var(--kb-c) 28%, var(--line)); box-shadow: 0 22px 44px -30px color-mix(in srgb, var(--kb-c) 70%, transparent); }
+  .kb-col:hover::before { left: 6px; right: 6px; }
+  .kb-col.drop {
+    border-color: color-mix(in srgb, var(--kb-c) 65%, transparent);
+    background: color-mix(in srgb, var(--kb-c) 7%, color-mix(in srgb, var(--panel) 80%, transparent));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--kb-c) 16%, transparent), 0 24px 48px -26px color-mix(in srgb, var(--kb-c) 70%, transparent);
   }
-  .kanban-col:hover {
-    border-color: var(--line-strong);
-    box-shadow: var(--shadow-pop);
+  .kb-col.drop::before { left: 0; right: 0; height: 3px; }
+  .kb-col-head { display: flex; align-items: center; gap: 8px; padding: 12px 8px 8px 14px; cursor: grab; user-select: none; }
+  .kb-col-dot {
+    width: 9px; height: 9px; flex: none; border-radius: 50%; background: var(--kb-c);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--kb-c) 18%, transparent), 0 0 12px color-mix(in srgb, var(--kb-c) 55%, transparent);
+  }
+  .kb-col-name { flex: 1; min-width: 0; font: 700 13.5px/1.2 var(--label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kb-count {
+    min-width: 22px; height: 20px; padding: 0 7px; flex: none; border-radius: 999px; display: inline-grid; place-items: center;
+    font: 700 11px/1 var(--body); font-variant-numeric: tabular-nums;
+    color: var(--kb-c); background: color-mix(in srgb, var(--kb-c) 14%, transparent);
+  }
+  .kb-col-tools { display: flex; gap: 1px; opacity: 0; transform: translateX(6px); transition: opacity .2s, transform .3s var(--ease); }
+  .kb-col:hover .kb-col-tools, .kb-col:focus-within .kb-col-tools { opacity: 1; transform: none; }
+  .kb-col-meta { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 14px 8px; }
+  .kb-tag {
+    display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; max-width: 100%;
+    border-radius: 999px; font: 600 11px/1 var(--body); color: var(--ink-soft);
+    background: var(--glass-2); border: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .kb-tag .icon { width: 11px; height: 11px; }
+  .kb-tag.role { color: var(--kb-c); border-color: color-mix(in srgb, var(--kb-c) 35%, transparent); background: color-mix(in srgb, var(--kb-c) 9%, transparent); }
+  .kb-tag.over { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+  .kb-tag .kb-avatars { margin-left: -4px; }
+  .kb-tag .kb-av { width: 16px; height: 16px; font-size: 8px; border-width: 1.5px; }
+  .kb-wip { margin: -2px 14px 8px; height: 3px; border-radius: 999px; background: var(--glass-3); overflow: hidden; }
+  .kb-wip i { display: block; height: 100%; width: var(--fill); background: var(--kb-c); border-radius: inherit; transition: width .6s var(--ease); }
+  .kb-wip.over i { background: var(--danger); }
+  .kb-list {
+    flex: 1; min-height: 48px; overflow-y: auto; overflow-x: hidden;
+    padding: 4px 10px 4px; display: flex; flex-direction: column; gap: 8px;
+    scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
+  }
+  .kb-empty {
+    display: grid; place-items: center; gap: 6px; min-height: 96px; padding: 14px;
+    border: 1.5px dashed var(--line-strong); border-radius: 14px; background: none;
+    color: var(--ink-soft); font: 500 12px/1.4 var(--body); text-align: center; cursor: pointer;
+    transition: border-color .2s, color .2s, background-color .2s;
+  }
+  .kb-empty .icon { width: 18px; height: 18px; opacity: .7; transition: transform .35s var(--ease); }
+  .kb-empty:hover, .kb-col.drop .kb-empty { border-color: var(--kb-c); color: var(--kb-c); background: color-mix(in srgb, var(--kb-c) 6%, transparent); }
+  .kb-empty:hover .icon { transform: rotate(90deg) scale(1.1); }
+  .kb-list:has(.kb-ph) .kb-empty { display: none; }
+  .kb-add {
+    margin: 4px 10px 10px; display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; flex: none;
+    border: 0; border-radius: 11px; background: none; color: var(--ink-soft); font: 600 12.5px var(--body);
+    transition: background-color .2s, color .2s;
+  }
+  .kb-add .icon { width: 14px; height: 14px; transition: transform .35s var(--ease); }
+  .kb-add:hover { background: color-mix(in srgb, var(--kb-c) 10%, transparent); color: var(--kb-c); }
+  .kb-add:hover .icon { transform: rotate(90deg); }
+  .kb-add-col {
+    flex: 0 0 240px; align-self: flex-start; min-height: 116px; padding: 16px;
+    display: grid; place-items: center; align-content: center; gap: 8px;
+    border: 1.5px dashed var(--line-strong); border-radius: 18px;
+    background: color-mix(in srgb, var(--panel) 35%, transparent); color: var(--ink-soft); font: 600 13px var(--body);
+    transition: border-color .25s, color .25s, background-color .25s, transform .3s var(--ease);
+  }
+  .kb-add-col .icon { width: 20px; height: 20px; transition: transform .4s var(--ease); }
+  .kb-add-col:hover { border-color: var(--copper); color: var(--copper); background: var(--copper-soft); transform: translateY(-2px); }
+  .kb-add-col:hover .icon { transform: rotate(90deg) scale(1.12); }
+
+  .kb-card {
+    position: relative; flex: none; isolation: isolate; overflow: hidden;
+    padding: 11px 12px 10px 15px; border-radius: 14px;
+    background: var(--panel); border: 1px solid var(--line);
+    box-shadow: 0 1px 2px #0000000f, 0 8px 18px -14px #00000055;
+    cursor: grab; user-select: none; outline: none;
+    transition: transform .25s var(--ease), box-shadow .3s var(--ease), border-color .2s, opacity .25s;
+  }
+  .kb-card::before {
+    content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0; transition: opacity .3s;
+    background: radial-gradient(260px circle at var(--mx, 50%) var(--my, -30%), color-mix(in srgb, var(--kb-t) 16%, transparent), transparent 62%);
+  }
+  .kb-card::after {
+    content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0;
+    background: var(--kb-t); transition: top .3s var(--ease), bottom .3s var(--ease);
+  }
+  .kb-card:hover, .kb-card:focus-visible {
     transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--kb-t) 40%, var(--line));
+    box-shadow: 0 2px 4px #00000014, 0 18px 34px -18px color-mix(in srgb, var(--kb-t) 55%, #00000080);
   }
-  .kanban-col.drag-over {
-    border-color: var(--copper);
-    box-shadow: 0 0 0 2px var(--copper-soft), var(--shadow-pop);
-    transform: translateY(-3px);
+  .kb-card:hover::before { opacity: 1; }
+  .kb-card:hover::after { top: 0; bottom: 0; }
+  .kb-card.armed { transform: scale(.975); transition-duration: .15s; }
+  .kb-card.t-run {
+    border-color: transparent;
+    background:
+      linear-gradient(var(--panel), var(--panel)) padding-box,
+      conic-gradient(from var(--kb-angle), color-mix(in srgb, var(--copper) 18%, transparent) 0 55%, var(--copper) 75%, color-mix(in srgb, var(--copper) 18%, transparent) 95%) border-box;
+    animation: kb-spin 3.2s linear infinite;
   }
-  .kanban-col.drag-over::before { opacity: 1; height: 3px; background: var(--copper); }
-  .kanban-col.role-check { border-top: 3px solid var(--question); }
-  .kanban-col.role-check::before { display: none; }
-  .kanban-col.role-done { border-top: 3px solid var(--done); }
-  .kanban-col.role-done::before { display: none; }
-  .kanban-col-head {
-    flex: none; display: flex; align-items: flex-start; gap: 8px;
-    padding: 16px 14px 8px;
+  .kb-card.t-done .kb-card-title { color: var(--ink-soft); }
+  .kb-card.kb-lifted { display: none; }
+  .kb-card.kb-hidden { display: none; }
+  .kb-card-title { font: 600 13px/1.4 var(--body); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .kb-card-desc, .kb-card-sum {
+    margin-top: 4px; font-size: 12px; line-height: 1.45; color: var(--ink-soft); overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
-  .kanban-col-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
-  .kanban-col-title b { font: 700 14px/1.25 var(--label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-  .kanban-col-count {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; flex: none;
-    font: 700 11px/1 var(--label); background: var(--copper-soft); color: var(--copper);
+  .kb-card-sum { padding: 6px 8px; margin-top: 8px; border-radius: 8px; background: color-mix(in srgb, var(--kb-t) 8%, var(--glass-2)); white-space: pre-wrap; }
+  .kb-card-foot { display: flex; align-items: center; gap: 5px; margin-top: 9px; flex-wrap: wrap; }
+  .kb-status {
+    display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 999px;
+    font: 700 10px/1 var(--body); letter-spacing: .04em; text-transform: uppercase;
+    color: var(--kb-t); background: color-mix(in srgb, var(--kb-t) 13%, transparent);
+  }
+  .kb-status i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .t-run .kb-status i, .kb-status.t-run i { animation: kb-breathe 1.4s ease-in-out infinite; }
+  .kb-chip {
+    display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 999px;
+    font: 600 10.5px/1 var(--body); color: var(--ink-soft); background: var(--glass-2); font-variant-numeric: tabular-nums;
+  }
+  .kb-chip .icon { width: 11px; height: 11px; }
+  .kb-avatars { display: inline-flex; margin-left: auto; }
+  .kb-av {
+    --h: 200; width: 22px; height: 22px; flex: none; border-radius: 50%; display: grid; place-items: center;
+    font: 700 10px/1 var(--body); color: #fff; margin-left: -6px; border: 2px solid var(--panel);
+    background: linear-gradient(135deg, hsl(var(--h) 65% 58%), hsl(calc(var(--h) + 35) 60% 44%));
     transition: transform .25s var(--ease);
   }
-  .kanban-col:hover .kanban-col-count { transform: scale(1.06); }
-  .kanban-col-meta { flex: none; padding: 0 14px 10px; font-size: 11px; color: var(--ink-soft); line-height: 1.4; }
-  .kanban-col-meta .pill {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 3px 8px; margin: 0 4px 4px 0; border-radius: 999px;
-    background: var(--glass-2); border: 1px solid var(--line); font-size: 10px; font-weight: 600;
-    transition: border-color .2s, transform .2s var(--ease);
+  .kb-av:first-child { margin-left: 0; }
+  .kb-card:hover .kb-av { transform: translateY(-1px); }
+
+  .kb-ph {
+    flex: none; border-radius: 14px;
+    border: 1.5px dashed color-mix(in srgb, var(--copper) 65%, transparent);
+    background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--copper) 9%, transparent) 0 8px, transparent 8px 16px);
   }
-  .kanban-col-meta .pill:hover { transform: translateY(-1px); }
-  .kanban-col-meta .pill.check { color: var(--question); border-color: color-mix(in srgb, var(--question) 35%, var(--line)); }
-  .kanban-col-meta .pill.done { color: var(--done); border-color: color-mix(in srgb, var(--done) 35%, var(--line)); }
-  .kanban-cards {
-    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
-    padding: 4px 10px 14px; display: flex; flex-direction: column; gap: 10px;
-    scrollbar-width: thin;
+  .kb-col-ph {
+    flex: 0 0 300px; border-radius: 18px;
+    border: 1.5px dashed color-mix(in srgb, var(--copper) 65%, transparent);
+    background: color-mix(in srgb, var(--copper) 6%, transparent);
   }
-  .kanban-cards:empty::after {
-    content: attr(data-empty);
-    display: grid; place-items: center; min-height: 88px; margin: 4px;
-    border: 1px dashed var(--line-strong); border-radius: var(--r);
-    color: var(--ink-soft); font-size: 12px; text-align: center; padding: 14px;
-    background: color-mix(in srgb, var(--glass-2) 55%, transparent);
-    transition: border-color .2s, color .2s;
+  .kb-col.kb-lifted { display: none; }
+  .kb-ghost {
+    position: fixed !important; left: 0; top: 0; z-index: 70; margin: 0 !important; pointer-events: none;
+    transform-origin: 50% 30%; will-change: transform; cursor: grabbing;
+    box-shadow: 0 30px 60px -22px #000000aa, 0 0 0 1px color-mix(in srgb, var(--copper) 50%, transparent), 0 0 40px -12px var(--copper-glow) !important;
   }
-  .kanban-col.drag-over .kanban-cards:empty::after {
-    border-color: var(--copper); color: var(--copper);
+  .kb-ghost.kb-card { transition: none; }
+  .kb-ghost.kb-col { transition: none; max-height: 70vh; overflow: hidden; }
+  body.kb-dragging, body.kb-dragging * { cursor: grabbing !important; user-select: none !important; }
+
+  .kb-composer {
+    margin: 4px 10px 10px; padding: 8px; flex: none; display: grid; gap: 6px;
+    border-radius: 14px; background: var(--panel);
+    border: 1px solid color-mix(in srgb, var(--kb-c) 60%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--kb-c) 14%, transparent), 0 14px 30px -18px color-mix(in srgb, var(--kb-c) 60%, transparent);
+    animation: kb-pop .35s var(--ease);
   }
-  .kanban-card {
-    background: var(--raised); border: 1px solid var(--line); border-radius: var(--r);
-    padding: 13px 13px 11px; cursor: grab;
-    box-shadow: var(--shadow);
-    transition: border-color .2s, box-shadow .28s var(--ease), transform .28s var(--ease);
-    animation: kanban-card-in .4s var(--ease) backwards;
+  .kb-composer textarea {
+    width: 100%; min-height: 38px; max-height: 160px; padding: 2px 4px; resize: none;
+    border: 0; background: none; outline: none; font: 500 13px/1.4 var(--body);
   }
-  @keyframes kanban-card-in {
-    from { opacity: 0; transform: translateY(10px) scale(.98); }
-    to { opacity: 1; transform: none; }
+  .kb-composer-row { display: flex; align-items: center; gap: 4px; }
+  .kb-hint { margin-right: auto; font-size: 10.5px; color: var(--ink-soft); padding-left: 4px; }
+
+  .kb-backdrop {
+    position: fixed; inset: 0; z-index: 60;
+    background: color-mix(in srgb, var(--bg) 50%, transparent);
+    -webkit-backdrop-filter: blur(8px) saturate(120%); backdrop-filter: blur(8px) saturate(120%);
+    animation: fade-in .25s ease;
   }
-  .kanban-card:hover {
-    border-color: color-mix(in srgb, var(--copper) 45%, var(--line));
-    box-shadow: var(--shadow-lift);
-    transform: translateY(-2px);
+  .kb-modal {
+    --kb-c: var(--copper);
+    position: fixed; z-index: 61; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(460px, calc(100vw - 32px)); max-height: calc(100vh - 40px);
+    display: flex; flex-direction: column; overflow: hidden;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 20px;
+    box-shadow: 0 40px 90px -30px #000000b0, 0 0 0 1px color-mix(in srgb, var(--kb-c) 12%, transparent);
+    animation: kb-modal-in .4s var(--ease);
   }
-  .kanban-card.dragging { opacity: .42; transform: scale(.97) rotate(.4deg); cursor: grabbing; }
-  .kanban-card-title { font: 600 13px/1.35 var(--body); margin: 0 0 8px; }
-  .kanban-card-status {
-    display: inline-flex; align-items: center; gap: 5px;
-    padding: 3px 8px; border-radius: 999px; font: 700 10px/1 var(--label);
-    letter-spacing: .04em; text-transform: uppercase;
-    background: var(--glass-2); color: var(--ink-soft); border: 1px solid var(--line);
+  .kb-modal::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--kb-c), transparent); transition: background .3s;
   }
-  .kanban-card-status.bad { color: var(--copper); background: var(--copper-soft); border-color: color-mix(in srgb, var(--copper) 40%, transparent); }
-  .kanban-card-status.run {
-    color: var(--done); background: color-mix(in srgb, var(--done) 12%, transparent);
-    border-color: color-mix(in srgb, var(--done) 35%, transparent);
-    animation: kanban-pulse 1.6s ease-in-out infinite;
+  .kb-modal.wide { width: min(600px, calc(100vw - 32px)); }
+  .kb-modal[hidden], .kb-backdrop[hidden] { display: none !important; }
+  .kb-modal form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  .kb-modal-head { display: flex; align-items: center; gap: 10px; padding: 14px 12px 6px 18px; }
+  .kb-modal-head h3 { flex: 1; margin: 0; font: 700 15px/1.2 var(--label); }
+  .kb-modal-body { display: grid; gap: 14px; padding: 6px 18px 16px; overflow-y: auto; min-height: 0; }
+  .kb-modal .kb-title-input { font: 600 15px/1.3 var(--body) !important; min-height: 42px !important; }
+  .kb-modal textarea { min-height: 120px; resize: vertical; font: 13px/1.5 var(--body); }
+  .kb-field { display: grid; gap: 6px; min-width: 0; }
+  .kb-field > span { font: 600 11px/1.2 var(--body); color: var(--ink-soft); letter-spacing: .02em; }
+  .kb-field > span small { font-weight: 400; margin-left: 6px; opacity: .8; }
+  .kb-grid2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+  .kb-inline { grid-template-columns: 1fr auto; align-items: center; }
+  .kb-modal-foot {
+    display: flex; align-items: center; gap: 6px; padding: 12px 14px 12px 12px;
+    border-top: 1px solid var(--line); background: color-mix(in srgb, var(--glass-2) 55%, transparent);
   }
-  @keyframes kanban-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 transparent; }
-    50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--done) 14%, transparent); }
+  .kb-modal-foot .kb-hint { margin-left: 6px; }
+  .kb-seg { display: flex; gap: 3px; padding: 3px; border-radius: 12px; background: var(--field); }
+  .kb-seg button {
+    flex: 1; height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border: 0; border-radius: 9px; background: none; color: var(--ink-soft); font: 600 12px var(--body);
+    transition: background-color .25s, color .2s, box-shadow .3s var(--ease);
   }
-  .kanban-card-sum { margin: 8px 0 0; font-size: 12px; color: var(--ink-soft); white-space: pre-wrap; max-height: 4.8em; overflow: hidden; line-height: 1.4; }
-  .kanban-card-actions { display: flex; gap: 6px; margin-top: 10px; }
-  .kanban-card-actions .ghost { min-height: var(--h-sm); padding: 0 10px; font-size: 12px; }
-  .kanban-drawer {
-    width: min(420px, 100vw); border-left: 1px solid var(--line);
-    background: var(--sheet); box-shadow: var(--shadow-pop);
-    display: flex; flex-direction: column; min-height: 0;
-    animation: panel-in .35s var(--ease);
+  .kb-seg button i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); transition: box-shadow .3s; }
+  .kb-seg button:hover { color: var(--ink); }
+  .kb-seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 2px 10px -4px #00000055; }
+  .kb-seg button[aria-pressed="true"] i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent); }
+  .kb-note { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--ink-soft); }
+  .kb-note code { font: 11px var(--mono); padding: 0 4px; border-radius: 4px; background: var(--field); }
+  .kb-stepper { display: inline-flex; align-items: center; height: 34px; border-radius: 10px; background: var(--field); }
+  .kb-stepper button {
+    width: 32px; height: 34px; border: 0; background: none; color: var(--ink-soft); font: 600 16px/1 var(--body);
+    border-radius: 10px; transition: color .2s, background-color .2s;
   }
-  .kanban-drawer[hidden] { display: none !important; }
-  .kanban-form { display: grid; gap: 14px; padding: 18px 18px 24px; overflow-y: auto; min-height: 0; flex: 1; }
-  .kanban-form h3 { margin: 0; font: 700 15px var(--label); }
-  .kanban-form label { display: grid; gap: 5px; }
-  .kanban-agents { display: flex; flex-wrap: wrap; gap: 6px; }
-  .kanban-agents label.check {
-    display: inline-flex; align-items: center; gap: 6px; margin: 0;
-    padding: 5px 10px; background: var(--glass-1); border: 1px solid var(--line);
-    border-radius: 999px; font-size: 12px; transition: border-color .2s, background-color .2s, transform .2s var(--ease);
+  .kb-stepper button:hover { color: var(--copper); background: var(--copper-soft); }
+  .kb-stepper output { min-width: 30px; text-align: center; font: 700 13px/1 var(--body); font-variant-numeric: tabular-nums; }
+  .kb-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+  .kb-swatch {
+    width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: var(--c);
+    box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px transparent;
+    transition: transform .25s var(--ease), box-shadow .25s;
   }
-  .kanban-agents label.check:hover { transform: translateY(-1px); }
-  .kanban-agents label.check:has(input:checked) {
-    border-color: var(--copper); background: var(--copper-soft); color: var(--copper); font-weight: 600;
+  .kb-swatch.auto { background: conic-gradient(var(--copper), var(--question), var(--done), var(--copper)); }
+  .kb-swatch:hover { transform: scale(1.14); }
+  .kb-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--c, var(--copper)); transform: scale(1.06); }
+  .kb-people { display: flex; flex-wrap: wrap; gap: 6px; }
+  .kb-person {
+    display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px 0 4px;
+    border-radius: 999px; border: 1px solid var(--line); background: var(--glass-1);
+    color: var(--ink-soft); font: 600 12px var(--body);
+    transition: border-color .2s, background-color .2s, color .2s, transform .2s var(--ease);
   }
-  .kanban-empty {
-    margin: auto; padding: 40px 32px; text-align: center; color: var(--ink-soft);
-    font-size: 14px; max-width: 380px; animation: fade-up .45s var(--ease);
-    border: 1px dashed var(--line-strong); border-radius: var(--r-lg);
-    background: color-mix(in srgb, var(--glass-1) 70%, transparent);
+  .kb-person .kb-av { margin: 0; border: 0; width: 22px; height: 22px; }
+  .kb-person:hover { transform: translateY(-1px); color: var(--ink); border-color: var(--line-strong); }
+  .kb-person[aria-pressed="true"] { color: var(--ink); border-color: var(--copper); background: var(--copper-soft); }
+  .kb-person[aria-pressed="true"] .kb-av { box-shadow: 0 0 0 2px var(--copper); }
+  .kb-link { border: 0; background: none; padding: 0; color: var(--copper); font: 600 12px var(--body); }
+  .kb-link:hover { text-decoration: underline; }
+  .kb-report {
+    max-height: 150px; overflow: auto; padding: 10px 12px; border-radius: 12px;
+    background: var(--field); color: var(--ink-soft); font: 12px/1.5 var(--body); white-space: pre-wrap; overflow-wrap: anywhere;
   }
-  body.kanban-open .layout, body.kanban-open .top {
-    pointer-events: none; visibility: hidden;
-  }
+  .kb-err { margin: 0; color: var(--danger); font-size: 12.5px; }
+  .kb-shake { animation: kb-shake .4s var(--ease); }
+
+  @keyframes kb-page-in { from { opacity: 0; transform: scale(.985); } }
+  @keyframes kb-modal-in { from { opacity: 0; transform: translate(-50%, calc(-50% + 16px)) scale(.95); } }
+  @keyframes kb-pop { 0% { opacity: 0; transform: scale(.92); } 60% { opacity: 1; transform: scale(1.015); } 100% { transform: none; } }
+  @keyframes kb-bump { 40% { transform: scale(1.3); } }
+  @keyframes kb-breathe { 50% { opacity: .35; transform: scale(.75); } }
+  @keyframes kb-spin { to { --kb-angle: 360deg; } }
+  @keyframes kb-sheen { to { background-position: -200% 0; } }
+  @keyframes kb-shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
   @media (max-width: 720px) {
-    .kanban-stage { grid-template-columns: 1fr; }
-    .kanban-drawer { position: absolute; inset: 0; width: auto; z-index: 2; border-left: 0; }
-    .kanban-col { flex-basis: min(288px, 82vw); }
-    .kanban-brand b { font-size: 18px; }
+    .kb-col, .kb-col-ph { flex-basis: min(290px, 84vw); width: min(290px, 84vw); }
+    .kb-search { width: 140px; }
+    .kb-brand-text span { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .kanban-page, .kanban-page *, .kb-modal, .kb-modal *, .kb-backdrop { animation: none !important; transition: none !important; }
   }
 
   /* Подложка панели: затемняет и размывает страницу под ней */
@@ -3339,6 +3528,7 @@
   <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-board" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="10" rx="1.5"/><rect x="17" y="4" width="4" height="13" rx="1.5"/></symbol>
   <symbol id="i-msgs" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M6 2h12"/><path d="M6 22h12"/><path d="M7 2v4l5 6-5 6v4"/><path d="M17 2v4l-5 6 5 6v4"/></symbol>
@@ -3373,7 +3563,7 @@
     <div class="limits-menu" id="limitsMenu" hidden role="dialog" aria-label="Лимиты Cursor"></div>
   </div>
   <button class="ghost" id="scheduleBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="schedule" title="Расписание: задачи по cron"><svg class="icon"><use href="#i-clock"/></svg>Расписание<span class="sched-badge" id="scheduleBadge" hidden>0</span></button>
-  <button class="ghost" id="kanbanBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="kanban" title="Канбан: задачи проекта и агенты по столбцам"><svg class="icon"><use href="#i-msgs"/></svg>Канбан<span class="sched-badge" id="kanbanBadge" hidden>0</span></button>
+  <button class="ghost" id="kanbanBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="kanban" title="Канбан: задачи проекта и агенты по столбцам"><svg class="icon"><use href="#i-board"/></svg>Канбан<span class="sched-badge" id="kanbanBadge" hidden>0</span></button>
   <button class="ghost" id="weightBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="weightPanel" title="Вес переписки этой директории: столько токенов агенты затянут в контекст, прочитав несжатое. Оценка: символы / 3"><svg class="icon"><use href="#i-squeeze"/></svg><span id="weightSum"></span></button>
   <button class="ghost iconbtn update-pulse" id="updateBtn" type="button" hidden title="Доступно обновление" aria-label="Доступно обновление" aria-haspopup="dialog" aria-controls="updateModal"><svg class="icon"><use href="#i-download"/></svg></button>
   <button class="ghost" id="toggleAgents" type="button" aria-expanded="false" aria-controls="agents"><svg class="icon"><use href="#i-users"/></svg>Агенты</button>
@@ -3479,66 +3669,103 @@
 </div>
 
 <section class="kanban-page" id="kanban" hidden role="dialog" aria-modal="true" aria-label="Канбан">
-  <header class="kanban-top">
-    <div class="kanban-brand">
-      <b>Канбан</b>
-      <span id="kanbanHint"></span>
+  <header class="kb-top">
+    <div class="kb-brand">
+      <span class="kb-logo" aria-hidden="true"><svg class="icon"><use href="#i-board"/></svg></span>
+      <div class="kb-brand-text">
+        <b>Канбан</b>
+        <span id="kanbanHint"></span>
+      </div>
     </div>
-    <div class="kanban-actions" id="kanbanToolbar">
-      <button class="send" id="kanbanNewCard" type="button"><svg class="icon"><use href="#i-plus"/></svg>Карточка</button>
-      <button class="ghost" id="kanbanNewCol" type="button"><svg class="icon"><use href="#i-plus"/></svg>Столбец</button>
-      <button class="ghost" id="kanbanScan" type="button"><svg class="icon"><use href="#i-play"/></svg>Сканировать</button>
-      <button class="ghost iconbtn" id="kanbanClose" type="button" aria-label="Закрыть канбан" title="Закрыть"><svg class="icon"><use href="#i-x"/></svg></button>
+    <div class="kb-stats" id="kanbanStats"></div>
+    <span class="kb-spacer"></span>
+    <label class="kb-search"><svg class="icon"><use href="#i-search"/></svg><input id="kanbanSearch" type="search" placeholder="Найти задачу" autocomplete="off" aria-label="Найти задачу"></label>
+    <div class="kb-actions">
+      <button class="kb-btn" id="kanbanScan" type="button" title="Разослать задачи агентам столбцов"><svg class="icon"><use href="#i-play"/></svg>Скан</button>
+      <button class="kb-btn" id="kanbanNewCol" type="button"><svg class="icon"><use href="#i-plus"/></svg>Столбец</button>
+      <button class="kb-btn primary" id="kanbanNewCard" type="button"><svg class="icon"><use href="#i-plus"/></svg>Задача</button>
+      <button class="kb-icon kb-close" id="kanbanClose" type="button" aria-label="Закрыть канбан" title="Закрыть (Esc)"><svg class="icon"><use href="#i-x"/></svg></button>
     </div>
   </header>
-  <div class="kanban-stage">
-    <div class="kanban-board" id="kanbanBoard" tabindex="0" aria-label="Столбцы канбана"></div>
-    <aside class="kanban-drawer" id="kanbanDrawer" hidden>
-      <form class="kanban-form" id="kanbanCardForm" hidden>
-        <h3 id="kanbanCardFormTitle">Карточка</h3>
-        <label><span class="label">Заголовок</span><input id="kanbanCardTitle" type="text" maxlength="200" required></label>
-        <label><span class="label">Текст и verify</span><textarea id="kanbanCardBody" rows="10" placeholder="Что сделать…
+  <div class="kanban-board" id="kanbanBoard" tabindex="0" aria-label="Столбцы канбана"></div>
+</section>
 
-verify:
-- npm test
-maxRounds: 3
-checker: reviewer"></textarea></label>
-        <label><span class="label">Столбец</span><select id="kanbanCardColumn"></select></label>
-        <div>
-          <span class="label">Агенты карточки<small>пусто - агенты столбца</small></span>
-          <div class="kanban-agents" id="kanbanCardAgents"></div>
+<div class="kb-backdrop" id="kbBackdrop" hidden></div>
+<section class="kb-modal" id="kbColModal" hidden role="dialog" aria-modal="true" aria-labelledby="kbColHead">
+  <form id="kbColForm" novalidate>
+    <header class="kb-modal-head">
+      <h3 id="kbColHead">Новый столбец</h3>
+      <button class="kb-icon kb-close" type="button" data-kb-close aria-label="Закрыть"><svg class="icon"><use href="#i-x"/></svg></button>
+    </header>
+    <div class="kb-modal-body">
+      <input class="kb-title-input" id="kbColName" type="text" maxlength="80" placeholder="Название столбца" autocomplete="off" aria-label="Название столбца">
+      <div class="kb-field">
+        <span>Роль</span>
+        <div class="kb-seg" id="kbColRole">
+          <button type="button" data-role="" style="--c: var(--copper)"><i></i>Работа</button>
+          <button type="button" data-role="check" style="--c: var(--question)"><i></i>Проверка</button>
+          <button type="button" data-role="done" style="--c: var(--done)"><i></i>Готово</button>
         </div>
-        <p class="sched-error" id="kanbanCardError" role="alert" hidden></p>
-        <div class="sched-actions">
-          <button class="send" type="submit">Сохранить</button>
-          <button class="ghost" id="kanbanCardCancel" type="button">Отмена</button>
-          <button class="ghost" id="kanbanCardDelete" type="button" hidden>Удалить</button>
-        </div>
-      </form>
-      <form class="kanban-form" id="kanbanColForm" hidden>
-        <h3 id="kanbanColFormTitle">Столбец</h3>
-        <label><span class="label">Название</span><input id="kanbanColTitle" type="text" maxlength="80" required></label>
-        <label><span class="label">Роль</span>
-          <select id="kanbanColRole">
-            <option value="">обычный</option>
-            <option value="check">проверка (checker)</option>
-            <option value="done">готово</option>
-          </select>
-        </label>
-        <label><span class="label">WIP<small>0 - без лимита</small></span><input id="kanbanColWip" type="number" min="0" max="99" value="0"></label>
-        <div>
-          <span class="label">Агенты столбца</span>
-          <div class="kanban-agents" id="kanbanColAgents"></div>
-        </div>
-        <p class="sched-error" id="kanbanColError" role="alert" hidden></p>
-        <div class="sched-actions">
-          <button class="send" type="submit">Сохранить</button>
-          <button class="ghost" id="kanbanColCancel" type="button">Отмена</button>
-          <button class="ghost" id="kanbanColDelete" type="button" hidden>Удалить</button>
-        </div>
-      </form>
-    </aside>
-  </div>
+        <p class="kb-note" id="kbColRoleNote"></p>
+      </div>
+      <div class="kb-field">
+        <span>Цвет</span>
+        <div class="kb-swatches" id="kbColColors"></div>
+      </div>
+      <div class="kb-field">
+        <span>Агенты столбца</span>
+        <div class="kb-people" id="kbColAgents"></div>
+      </div>
+      <div class="kb-field kb-inline">
+        <span>Лимит задач в работе<small>∞ - без лимита</small></span>
+        <div class="kb-stepper" id="kbColWip"></div>
+      </div>
+      <p class="kb-err" id="kbColError" role="alert" hidden></p>
+    </div>
+    <footer class="kb-modal-foot">
+      <button class="kb-btn danger sm" id="kbColDelete" type="button" hidden><svg class="icon"><use href="#i-trash"/></svg><span>Удалить</span></button>
+      <span class="kb-spacer"></span>
+      <button class="kb-btn sm" type="button" data-kb-close>Отмена</button>
+      <button class="kb-btn primary sm" type="submit">Сохранить</button>
+    </footer>
+  </form>
+</section>
+
+<section class="kb-modal wide" id="kbCardModal" hidden role="dialog" aria-modal="true" aria-labelledby="kbCardHead">
+  <form id="kbCardForm" novalidate>
+    <header class="kb-modal-head">
+      <h3 id="kbCardHead">Новая задача</h3>
+      <span class="kb-status" id="kbCardStatus" hidden></span>
+      <button class="kb-icon kb-close" type="button" data-kb-close aria-label="Закрыть"><svg class="icon"><use href="#i-x"/></svg></button>
+    </header>
+    <div class="kb-modal-body">
+      <input class="kb-title-input" id="kbCardName" type="text" maxlength="200" placeholder="Что нужно сделать?" autocomplete="off" aria-label="Название задачи">
+      <div class="kb-field">
+        <span>Описание и критерии проверки</span>
+        <textarea id="kbCardBody" rows="6" placeholder="Подробности задачи для агента…"></textarea>
+        <p class="kb-note">Блок <code>verify:</code> со строками <code>- …</code> - критерии для проверяющего; <code>checker: имя</code> - кто проверяет. <button class="kb-link" id="kbAddVerify" type="button">Добавить verify</button></p>
+      </div>
+      <div class="kb-grid2">
+        <label class="kb-field"><span>Столбец</span><select id="kbCardColumn"></select></label>
+        <div class="kb-field"><span>Кругов проверки</span><div class="kb-stepper" id="kbCardRounds"></div></div>
+      </div>
+      <div class="kb-field">
+        <span>Исполнители<small>пусто - агенты столбца</small></span>
+        <div class="kb-people" id="kbCardAgents"></div>
+      </div>
+      <div class="kb-field" id="kbCardReportWrap" hidden>
+        <span>Последний отчёт</span>
+        <div class="kb-report" id="kbCardReport"></div>
+      </div>
+      <p class="kb-err" id="kbCardError" role="alert" hidden></p>
+    </div>
+    <footer class="kb-modal-foot">
+      <button class="kb-btn danger sm" id="kbCardDelete" type="button" hidden><svg class="icon"><use href="#i-trash"/></svg><span>Удалить</span></button>
+      <span class="kb-hint">Ctrl+Enter - сохранить</span>
+      <button class="kb-btn sm" type="button" data-kb-close>Отмена</button>
+      <button class="kb-btn primary sm" type="submit">Сохранить</button>
+    </footer>
+  </form>
 </section>
 
 <div class="sched-backdrop" id="scheduleBackdrop" hidden></div>
@@ -3829,13 +4056,6 @@ checker: reviewer"></textarea></label>
       <span class="about-link-main">
         <b>bus-cursor</b>
         <span class="about-link-note">для Cursor</span>
-      </span>
-    </a>
-    <a class="about-link" href="https://github.com/two-vibecoders/bus-claude" target="_blank" rel="noopener noreferrer">
-      <span class="about-link-brand" aria-hidden="true"><svg class="icon icon-fill icon-claude"><use href="#i-claude"/></svg></span>
-      <span class="about-link-main">
-        <b>bus-claude</b>
-        <span class="about-link-note">для Claude</span>
       </span>
     </a>
   </div>
@@ -7699,11 +7919,79 @@ let scheduleNote = null; // daemonNote последнего действия - �
 // ---------- канбан ----------
 
 let kanbanOpen = false;
-let kanbanEditing = null; // { type: 'card'|'col', id? }
-let kanbanDrag = null; // { cardId }
+let kbModal = null; // { type: 'card'|'col', id } - открытая форма
+let kbDrag = null; // перетаскивание карточки или столбца
+let kbComposer = null; // { colId, text } - быстрая задача внизу столбца
+let kbRenderPending = false; // пришло состояние во время перетаскивания - дорисуем после
+let kbIntro = false;
+let kbQuery = '';
+const KB_EASE = 'cubic-bezier(.2, .7, .2, 1)';
+const KB_REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const KB_COLORS = ['', '#2aabee', '#8b5cf6', '#ec4899', '#ef4444', '#f59e0b', '#16a34a', '#14b8a6', '#64748b'];
+const KB_ROLE_NOTE = {
+  '': N('Скан отправляет задачи столбца его агентам.'),
+  check: N('Сюда задачи приходят на проверку - агенты столбца становятся проверяющими.'),
+  done: N('Сюда задача попадает после verify: PASS.'),
+};
+
+const kbBoard = () => state.kanban && state.kanban.board;
+const kbAgents = () => (state.kanban && state.kanban.agents) || [];
+const kbAgentName = (key) => (kbAgents().find((a) => a.key === key) || { name: key }).name;
+const kbCard = (id) => (kbBoard() ? kbBoard().cards.find((c) => c.id === id) : null);
+const kbColumn = (id) => (kbBoard() ? kbBoard().columns.find((c) => c.id === id) : null);
+
+function kbHue(text) {
+  let h = 0;
+  for (const ch of String(text)) h = (h * 31 + ch.codePointAt(0)) % 360;
+  return h;
+}
+
+function kbAvatar(key) {
+  const name = kbAgentName(key);
+  const node = el('span', { className: 'kb-av', title: name }, name.slice(0, 1).toUpperCase());
+  node.style.setProperty('--h', String(kbHue(name)));
+  return node;
+}
+
+const kbColColor = (col) => col.color || (col.role === 'check' ? 'var(--question)' : col.role === 'done' ? 'var(--done)' : 'var(--copper)');
+
+function kbTone(status) {
+  if (status === 'done') return 'done';
+  if (status === 'running' || status === 'partial') return 'run';
+  if (status === 'needs_answer') return 'ask';
+  if (status === 'failed' || status === 'needs_rework') return 'bad';
+  return 'open';
+}
+
+/** Текст карточки до блока verify: - он идёт на карточку описанием. */
+function kbDescription(body) {
+  const out = [];
+  for (const line of String(body || '').split(/\r?\n/)) {
+    if (/^\s*(verify|maxRounds|checker|cardId)\s*:/i.test(line)) break;
+    out.push(line);
+  }
+  return out.join('\n').trim();
+}
+
+function kbCriteria(body) {
+  let inVerify = false;
+  let n = 0;
+  for (const line of String(body || '').split(/\r?\n/)) {
+    const t = line.trim();
+    const head = /^verify\s*:\s*(.*)$/i.exec(t);
+    if (head) {
+      inVerify = true;
+      if (head[1]) n += 1;
+    } else if (inVerify) {
+      if (/^[-*]\s+\S/.test(t)) n += 1;
+      else if (t && !/^(maxRounds|checker|cardId)\s*:/i.test(t)) inVerify = false;
+    }
+  }
+  return n;
+}
 
 function renderKanbanBadge() {
-  const board = state.kanban && state.kanban.board;
+  const board = kbBoard();
   const { count, alert } = L.kanbanBadge(board);
   $('kanbanBadge').textContent = String(count);
   $('kanbanBadge').hidden = !count;
@@ -7715,262 +8003,921 @@ function applyKanban(data) {
   state.kanban = data;
   renderKanbanBadge();
   if (!kanbanOpen) return;
-  $('kanbanHint').textContent = (data && data.hint) || '';
+  if (kbDrag) {
+    kbRenderPending = true;
+    return;
+  }
   renderKanbanBoard();
 }
 
+const kbReload = () => getJson('/api/kanban').then(applyKanban).catch((err) => say(tr('Канбан не загрузился: {why}', { why: err.message }), true));
+
 function openKanban() {
   kanbanOpen = true;
+  kbIntro = true;
   document.body.classList.add('kanban-open');
   $('kanban').hidden = false;
   $('kanbanBtn').setAttribute('aria-expanded', 'true');
-  showKanbanBoard();
-  getJson('/api/kanban').then((data) => applyKanban(data)).catch((err) => say(tr('Канбан не загрузился: {why}', { why: err.message }), true));
-  $('kanbanClose').focus();
+  renderKanbanBoard();
+  kbReload();
+  $('kanbanBoard').focus({ preventScroll: true });
 }
 
 function closeKanban() {
+  if (kbDrag) kbDragEnd('cancel');
+  kbCloseModal(true);
   kanbanOpen = false;
-  kanbanEditing = null;
+  kbComposer = null;
   document.body.classList.remove('kanban-open');
   $('kanban').hidden = true;
-  $('kanbanDrawer').hidden = true;
-  $('kanbanCardForm').hidden = true;
-  $('kanbanColForm').hidden = true;
   $('kanbanBtn').setAttribute('aria-expanded', 'false');
   $('kanbanBtn').focus();
 }
 
-function showKanbanBoard() {
-  kanbanEditing = null;
-  $('kanbanCardForm').hidden = true;
-  $('kanbanColForm').hidden = true;
-  $('kanbanDrawer').hidden = true;
-  renderKanbanBoard();
+function renderKanbanStats(board) {
+  const cards = (board && board.cards) || [];
+  const count = (pred) => cards.filter(pred).length;
+  const items = [
+    ['t-open', tr('Задач'), cards.length],
+    ['t-run', tr('В работе'), count((c) => kbTone(c.status) === 'run')],
+    ['t-bad', tr('Внимание'), count((c) => kbTone(c.status) === 'bad' || kbTone(c.status) === 'ask')],
+    ['t-done', tr('Готово'), count((c) => c.status === 'done')],
+  ];
+  $('kanbanStats').replaceChildren(...items.map(([tone, label, value]) =>
+    el('span', { className: `kb-stat ${tone}${value ? '' : ' zero'}` }, el('i'), document.createTextNode(label), el('b', {}, String(value)))));
 }
 
-function kanbanAgentChecks(box, selected) {
-  const agents = (state.kanban && state.kanban.agents) || [];
-  const picked = new Set(selected || []);
-  box.replaceChildren(...agents.map((a) => {
-    const id = `ka-${box.id}-${a.key}`;
-    const label = el('label', { className: 'check' },
-      el('input', { type: 'checkbox', value: a.key, checked: picked.has(a.key) }),
-      document.createTextNode(`${a.name}${a.kind === 'global' ? ' · global' : ''}`));
-    return label;
-  }));
-  if (!agents.length) box.replaceChildren(el('span', { className: 'hint' }, tr('Нет агентов в проекте - заведи через «Новый агент».')));
+function kbRects(root, selector) {
+  const map = new Map();
+  for (const node of root.querySelectorAll(selector)) map.set(`${node.className.includes('kb-col') ? 'c' : 'k'}:${node.dataset.id}`, node.getBoundingClientRect());
+  return map;
 }
 
-function selectedKanbanAgents(box) {
-  return [...box.querySelectorAll('input[type=checkbox]:checked')].map((n) => n.value);
+/** Плавный переезд узлов со старых мест на новые (FLIP); новые карточки - всплывают. */
+function kbFlip(root, before, selector) {
+  if (KB_REDUCED) return;
+  for (const node of root.querySelectorAll(selector)) {
+    const old = before.get(`${node.className.includes('kb-col') ? 'c' : 'k'}:${node.dataset.id}`);
+    if (!old) {
+      if (node.classList.contains('kb-card')) node.animate([{ opacity: 0, transform: 'scale(.9)' }, { opacity: 1, transform: 'scale(1.02)', offset: .6 }, { opacity: 1, transform: 'none' }], { duration: 420, easing: KB_EASE });
+      continue;
+    }
+    const now = node.getBoundingClientRect();
+    const dx = old.left - now.left;
+    const dy = old.top - now.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+    node.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 380, easing: KB_EASE });
+  }
+}
+
+function kbIntroAnimate(root) {
+  if (KB_REDUCED) return;
+  root.querySelectorAll('.kb-col, .kb-add-col').forEach((col, i) => {
+    col.animate([{ opacity: 0, transform: 'translateY(26px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 560, delay: i * 60, easing: KB_EASE, fill: 'backwards' });
+    col.querySelectorAll('.kb-card').forEach((card, j) => {
+      card.animate([{ opacity: 0, transform: 'translateY(14px) scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 460, delay: 140 + i * 60 + Math.min(j, 10) * 40, easing: KB_EASE, fill: 'backwards' });
+    });
+  });
 }
 
 function renderKanbanBoard() {
-  const board = state.kanban && state.kanban.board;
+  const board = kbBoard();
   const root = $('kanbanBoard');
   $('kanbanHint').textContent = (state.kanban && state.kanban.hint) || '';
+  renderKanbanStats(board);
   if (!board) {
-    root.replaceChildren(el('p', { className: 'kanban-empty' }, tr('Открой каталог проекта шины - канбан хранится там.')));
+    root.replaceChildren(el('div', { className: 'kb-void' }, icon('folder'), el('b', {}, tr('Нет проекта')), el('span', {}, tr('Открой каталог проекта шины - канбан хранится там.'))));
     return;
   }
-  root.replaceChildren(...board.columns.map((col, i) => kanbanColumnNode(board, col, i)));
+  const selector = '.kb-card[data-id], .kb-col[data-id]';
+  const before = kbRects(root, selector);
+  const counts = new Map();
+  const scrolls = new Map();
+  for (const col of root.querySelectorAll('.kb-col[data-id]')) {
+    counts.set(col.dataset.id, col.querySelector('.kb-count').textContent);
+    scrolls.set(col.dataset.id, col.querySelector('.kb-list').scrollTop);
+  }
+  const typing = document.activeElement?.closest?.('.kb-composer');
+  root.replaceChildren(...board.columns.map((col) => kbColumnNode(board, col)), kbAddColumnNode());
+  for (const col of root.querySelectorAll('.kb-col[data-id]')) {
+    const id = col.dataset.id;
+    if (scrolls.has(id)) col.querySelector('.kb-list').scrollTop = scrolls.get(id);
+    const count = col.querySelector('.kb-count');
+    if (counts.has(id) && counts.get(id) !== count.textContent && !KB_REDUCED) count.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 420, easing: KB_EASE });
+  }
+  kbApplySearch();
+  if (kbIntro) {
+    kbIntro = false;
+    kbIntroAnimate(root);
+  } else kbFlip(root, before, selector);
+  if (typing) kbFocusComposer();
 }
 
-function kanbanColumnNode(board, col, index = 0) {
+function kbColumnNode(board, col) {
   const cards = board.cards.filter((c) => c.columnId === col.id);
-  const agentNames = (col.agentKeys || []).map((k) => {
-    const a = ((state.kanban && state.kanban.agents) || []).find((x) => x.key === k);
-    return a ? a.name : k;
-  });
-  const editCol = el('button', { type: 'button', className: 'ghost iconbtn', title: tr('Столбец'), ariaLabel: tr('Править столбец «{title}»', { title: col.title }) }, icon('edit'));
-  editCol.addEventListener('click', () => showKanbanColForm(col));
-  const titleBlock = el('div', { className: 'kanban-col-title' },
-    el('b', {}, col.title),
-    el('span', { className: 'kanban-col-count', title: tr('карточек: {n}', { n: cards.length }) }, String(cards.length)));
-  const head = el('div', { className: 'kanban-col-head' }, titleBlock, editCol);
-  const pills = [];
-  if (col.role === 'check') pills.push(el('span', { className: 'pill check' }, tr('проверка')));
-  if (col.role === 'done') pills.push(el('span', { className: 'pill done' }, tr('готово')));
-  if (col.wip) pills.push(el('span', { className: 'pill' }, `WIP ${col.wip}`));
-  for (const name of agentNames.slice(0, 4)) pills.push(el('span', { className: 'pill' }, name));
-  if (agentNames.length > 4) pills.push(el('span', { className: 'pill' }, `+${agentNames.length - 4}`));
-  if (!agentNames.length && col.role !== 'done') pills.push(el('span', { className: 'pill' }, tr('без агентов')));
-  const meta = el('div', { className: 'kanban-col-meta' }, ...pills);
-  const list = el('div', { className: 'kanban-cards' });
+  const node = el('section', { className: 'kb-col' });
+  node.dataset.id = col.id;
+  node.style.setProperty('--kb-c', kbColColor(col));
+  const add = el('button', { type: 'button', className: 'kb-mini', title: tr('Новая задача') }, icon('plus'));
+  add.addEventListener('click', () => kbStartComposer(col.id));
+  const edit = el('button', { type: 'button', className: 'kb-mini', title: tr('Настроить столбец') }, icon('edit'));
+  edit.addEventListener('click', () => kbOpenColumn(col));
+  const head = el('header', { className: 'kb-col-head' },
+    el('span', { className: 'kb-col-dot' }),
+    el('span', { className: 'kb-col-name', title: col.title }, col.title),
+    el('span', { className: 'kb-count' }, String(cards.length)),
+    el('span', { className: 'kb-col-tools' }, add, edit));
+  head.addEventListener('pointerdown', (e) => kbPointerDown(e, 'col', node));
+  head.addEventListener('dblclick', (e) => { if (!e.target.closest('button')) kbOpenColumn(col); });
+
+  const tags = [];
+  if (col.role === 'check') tags.push(el('span', { className: 'kb-tag role' }, icon('eye'), tr('проверка')));
+  if (col.role === 'done') tags.push(el('span', { className: 'kb-tag role' }, icon('check'), tr('готово')));
+  const keys = col.agentKeys || [];
+  if (keys.length) {
+    const label = keys.length <= 2 ? keys.map(kbAgentName).join(', ') : tr('агентов: {n}', { n: keys.length });
+    tags.push(el('span', { className: 'kb-tag', title: keys.map(kbAgentName).join(', ') }, el('span', { className: 'kb-avatars' }, ...keys.slice(0, 3).map(kbAvatar)), document.createTextNode(label)));
+  } else if (col.role !== 'done') tags.push(el('span', { className: 'kb-tag' }, icon('user'), tr('без агентов')));
+  const parts = [head];
+  let wipBar = null;
+  if (col.wip) {
+    const busy = cards.filter((c) => kbTone(c.status) === 'run').length;
+    tags.push(el('span', { className: `kb-tag${busy >= col.wip ? ' over' : ''}`, title: tr('Лимит задач в работе') }, icon('bolt'), `${busy}/${col.wip}`));
+    wipBar = el('div', { className: `kb-wip${busy >= col.wip ? ' over' : ''}` }, el('i'));
+    wipBar.style.setProperty('--fill', `${Math.min(100, Math.round((busy / col.wip) * 100))}%`);
+  }
+  parts.push(el('div', { className: 'kb-col-meta' }, ...tags));
+  if (wipBar) parts.push(wipBar);
+
+  const list = el('div', { className: 'kb-list' });
   list.dataset.columnId = col.id;
-  list.dataset.empty = tr('Перетащи карточку сюда');
-  list.addEventListener('dragover', (e) => {
-    if (!kanbanDrag) return;
-    e.preventDefault();
-    list.closest('.kanban-col').classList.add('drag-over');
-  });
-  list.addEventListener('dragleave', () => list.closest('.kanban-col').classList.remove('drag-over'));
-  list.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    list.closest('.kanban-col').classList.remove('drag-over');
-    if (!kanbanDrag) return;
-    const before = e.target.closest('.kanban-card');
-    try {
-      applyKanban(await post('/api/kanban/card', { move: true, id: kanbanDrag.cardId, columnId: col.id, beforeCardId: before ? before.dataset.id : '' }));
-      renderKanbanBoard();
-    } catch (err) {
-      say(err.message, true);
-    }
-    kanbanDrag = null;
-  });
-  cards.forEach((card, i) => {
-    const node = kanbanCardNode(card);
-    node.style.animationDelay = `${Math.min(i, 8) * 0.03}s`;
-    list.append(node);
-  });
-  const roleClass = col.role === 'check' ? ' role-check' : col.role === 'done' ? ' role-done' : '';
-  const colNode = el('div', { className: `kanban-col${roleClass}` }, head, meta, list);
-  colNode.dataset.id = col.id;
-  colNode.style.animationDelay = `${Math.min(index, 8) * 0.04}s`;
-  return colNode;
+  for (const card of cards) list.append(kbCardNode(card));
+  if (!cards.length) {
+    const empty = el('div', { className: 'kb-empty' }, icon('plus'), el('span', {}, tr('Перетащи задачу сюда или создай новую')));
+    empty.addEventListener('click', () => kbStartComposer(col.id));
+    list.append(empty);
+  }
+  parts.push(list);
+  parts.push(kbComposer && kbComposer.colId === col.id ? kbComposerNode(col) : kbAddButton(col));
+  node.append(...parts);
+  return node;
 }
 
-function kanbanCardNode(card) {
-  const statusKey = L.KANBAN_STATUS[card.status] || card.status;
-  const tone = card.status === 'failed' || card.status === 'needs_rework' || card.status === 'needs_answer' ? 'bad'
-    : card.status === 'running' || card.status === 'partial' ? 'run' : '';
-  const editBtn = el('button', { type: 'button', className: 'ghost' }, tr('Изменить'));
-  editBtn.addEventListener('click', (e) => { e.stopPropagation(); showKanbanCardForm(card); });
-  const node = el('div', { className: 'kanban-card', draggable: true },
-    el('div', { className: 'kanban-card-title' }, card.title),
-    el('span', { className: `kanban-card-status ${tone}` }, tr(statusKey) + (card.round ? ` · ${card.round}/${card.maxRounds}` : '')),
-    card.summary ? el('div', { className: 'kanban-card-sum' }, card.summary) : '',
-    el('div', { className: 'kanban-card-actions' }, editBtn));
+function kbAddColumnNode() {
+  const node = el('button', { type: 'button', className: 'kb-add-col' }, icon('plus'), el('span', {}, tr('Новый столбец')));
+  node.addEventListener('click', () => kbOpenColumn(null));
+  return node;
+}
+
+function kbCardNode(card) {
+  const tone = kbTone(card.status);
+  const node = el('article', { className: `kb-card t-${tone}`, tabIndex: 0 });
   node.dataset.id = card.id;
-  node.addEventListener('dragstart', (e) => {
-    kanbanDrag = { cardId: card.id };
-    node.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    try { e.dataTransfer.setData('text/plain', card.id); } catch {}
-  });
-  node.addEventListener('dragend', () => {
-    node.classList.remove('dragging');
-    kanbanDrag = null;
+  const desc = kbDescription(card.body);
+  const criteria = kbCriteria(card.body);
+  const foot = [el('span', { className: 'kb-status' }, el('i'), document.createTextNode(tr(L.KANBAN_STATUS[card.status] || card.status)))];
+  if (card.round) foot.push(el('span', { className: 'kb-chip', title: tr('Круг проверки') }, icon('restart'), `${card.round}/${card.maxRounds}`));
+  if (criteria) foot.push(el('span', { className: 'kb-chip', title: tr('Критериев verify: {n}', { n: criteria }) }, icon('check'), String(criteria)));
+  if (card.assigneeKeys && card.assigneeKeys.length) foot.push(el('span', { className: 'kb-avatars' }, ...card.assigneeKeys.slice(0, 3).map(kbAvatar)));
+  node.append(el('div', { className: 'kb-card-title' }, card.title));
+  if (desc) node.append(el('div', { className: 'kb-card-desc' }, desc));
+  if (card.summary && tone !== 'open') node.append(el('div', { className: 'kb-card-sum' }, card.summary));
+  node.append(el('div', { className: 'kb-card-foot' }, ...foot));
+  node.addEventListener('pointerdown', (e) => kbPointerDown(e, 'card', node));
+  node.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const current = kbCard(card.id);
+      if (current) kbOpenCard(current);
+    }
   });
   return node;
 }
 
-function showKanbanCardForm(card) {
-  kanbanEditing = { type: 'card', id: card && card.id };
-  $('kanbanColForm').hidden = true;
-  $('kanbanDrawer').hidden = false;
-  $('kanbanCardForm').hidden = false;
-  $('kanbanCardFormTitle').textContent = card ? tr('Карточка') : tr('Новая карточка');
-  $('kanbanCardTitle').value = (card && card.title) || '';
-  $('kanbanCardBody').value = (card && card.body) || `verify:\n- \nmaxRounds: 3\n`;
-  $('kanbanCardError').hidden = true;
-  $('kanbanCardDelete').hidden = !card;
-  const board = state.kanban && state.kanban.board;
-  const cols = (board && board.columns) || [];
-  $('kanbanCardColumn').replaceChildren(...cols.map((c) => el('option', { value: c.id, selected: card ? c.id === card.columnId : false }, c.title)));
-  kanbanAgentChecks($('kanbanCardAgents'), (card && card.assigneeKeys) || []);
-  $('kanbanCardTitle').focus();
+function kbApplySearch() {
+  const q = kbQuery.trim().toLowerCase();
+  for (const node of $('kanbanBoard').querySelectorAll('.kb-card[data-id]')) {
+    const card = kbCard(node.dataset.id);
+    const hit = !q || !card || `${card.title}\n${card.body}`.toLowerCase().includes(q);
+    node.classList.toggle('kb-hidden', !hit);
+  }
 }
 
-function showKanbanColForm(col) {
-  kanbanEditing = { type: 'col', id: col && col.id };
-  $('kanbanCardForm').hidden = true;
-  $('kanbanDrawer').hidden = false;
-  $('kanbanColForm').hidden = false;
-  $('kanbanColFormTitle').textContent = col ? tr('Столбец') : tr('Новый столбец');
-  $('kanbanColTitle').value = (col && col.title) || '';
-  $('kanbanColRole').value = (col && col.role) || '';
-  $('kanbanColWip').value = String((col && col.wip) || 0);
-  $('kanbanColError').hidden = true;
-  $('kanbanColDelete').hidden = !col;
-  kanbanAgentChecks($('kanbanColAgents'), (col && col.agentKeys) || []);
-  $('kanbanColTitle').focus();
+// ---------- быстрая задача в столбце ----------
+
+function kbAddButton(col) {
+  const node = el('button', { type: 'button', className: 'kb-add' }, icon('plus'), tr('Добавить задачу'));
+  node.addEventListener('click', () => kbStartComposer(col.id));
+  return node;
 }
+
+function kbFocusComposer() {
+  const ta = $('kanbanBoard').querySelector('.kb-composer textarea');
+  if (!ta) return;
+  ta.focus({ preventScroll: true });
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+
+function kbStartComposer(colId) {
+  kbComposer = { colId, text: kbComposer && kbComposer.colId === colId ? kbComposer.text : '' };
+  renderKanbanBoard();
+  kbFocusComposer();
+  const box = $('kanbanBoard').querySelector('.kb-composer');
+  if (box) box.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: KB_REDUCED ? 'auto' : 'smooth' });
+}
+
+function kbCloseComposer() {
+  if (!kbComposer) return;
+  kbComposer = null;
+  renderKanbanBoard();
+}
+
+function kbComposerNode(col) {
+  const ta = el('textarea', { rows: 2, maxLength: 200, placeholder: tr('Что нужно сделать? Enter - добавить') });
+  ta.value = kbComposer.text;
+  const grow = () => {
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(160, ta.scrollHeight)}px`;
+  };
+  ta.addEventListener('input', () => {
+    kbComposer.text = ta.value;
+    grow();
+  });
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      kbComposerSave(col.id, ta.value);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      kbCloseComposer();
+    }
+  });
+  ta.addEventListener('blur', () => setTimeout(() => {
+    const active = document.activeElement;
+    if (kbComposer && !kbComposer.text.trim() && !(active && active.closest('.kb-composer'))) kbCloseComposer();
+  }, 150));
+  const more = el('button', { type: 'button', className: 'kb-btn sm', title: tr('Описание, verify и исполнители') }, tr('Подробнее'));
+  more.addEventListener('click', () => {
+    const title = ta.value.trim();
+    kbComposer = null;
+    renderKanbanBoard();
+    kbOpenCard(null, { columnId: col.id, title });
+  });
+  const save = el('button', { type: 'button', className: 'kb-btn primary sm' }, tr('Добавить'));
+  save.addEventListener('click', () => kbComposerSave(col.id, ta.value));
+  const close = el('button', { type: 'button', className: 'kb-mini', ariaLabel: tr('Отмена') }, icon('x'));
+  close.addEventListener('click', kbCloseComposer);
+  requestAnimationFrame(grow);
+  return el('div', { className: 'kb-composer' }, ta, el('div', { className: 'kb-composer-row' }, el('span', { className: 'kb-spacer' }), more, save, close));
+}
+
+async function kbComposerSave(colId, text) {
+  const title = String(text || '').trim();
+  if (!title) {
+    kbShake($('kanbanBoard').querySelector('.kb-composer'));
+    return;
+  }
+  kbComposer = { colId, text: '' };
+  try {
+    applyKanban(await post('/api/kanban/card', { title, body: '', columnId: colId }));
+    kbFocusComposer();
+    const list = $('kanbanBoard').querySelector(`.kb-col[data-id="${CSS.escape(colId)}"] .kb-list`);
+    if (list) list.scrollTo({ top: list.scrollHeight, behavior: KB_REDUCED ? 'auto' : 'smooth' });
+  } catch (err) {
+    if (kbComposer) kbComposer.text = title;
+    say(err.message, true);
+    renderKanbanBoard();
+    kbFocusComposer();
+  }
+}
+
+function kbShake(node) {
+  if (!node) return;
+  node.classList.remove('kb-shake');
+  void node.offsetWidth;
+  node.classList.add('kb-shake');
+}
+
+// ---------- перетаскивание: зажал и тащишь карточку или шапку столбца ----------
+
+function kbPointerDown(e, kind, node) {
+  if (e.button !== 0 || kbDrag || e.target.closest('button, input, textarea, a, select')) return;
+  const start = { x: e.clientX, y: e.clientY };
+  const touch = e.pointerType === 'touch';
+  let armed = !touch;
+  const hold = setTimeout(() => {
+    armed = true;
+    if (kind === 'card') node.classList.add('armed');
+    if (touch && navigator.vibrate) navigator.vibrate(8);
+  }, touch ? 260 : 140);
+  const cleanup = () => {
+    clearTimeout(hold);
+    node.classList.remove('armed');
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', cleanup);
+  };
+  const move = (ev) => {
+    const dist = Math.hypot(ev.clientX - start.x, ev.clientY - start.y);
+    if (!armed) {
+      if (dist > 8) cleanup();
+      return;
+    }
+    if (dist < 4) return;
+    cleanup();
+    kbBeginDrag(kind, node, ev, start);
+  };
+  const up = () => {
+    cleanup();
+    const card = kind === 'card' && kbCard(node.dataset.id);
+    if (card) kbOpenCard(card);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', cleanup);
+}
+
+function kbBeginDrag(kind, node, ev, start) {
+  const rect = node.getBoundingClientRect();
+  const ghost = node.cloneNode(true);
+  ghost.classList.add('kb-ghost');
+  ghost.classList.remove('armed');
+  ghost.style.width = `${rect.width}px`;
+  if (kind === 'card') ghost.style.height = `${rect.height}px`;
+  ghost.style.setProperty('--kb-c', node.style.getPropertyValue('--kb-c'));
+  ghost.style.transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
+  document.body.append(ghost);
+  const ph = el('div', { className: kind === 'card' ? 'kb-ph' : 'kb-col-ph' });
+  ph.style.height = `${rect.height}px`;
+  node.after(ph);
+  node.classList.add('kb-lifted');
+  kbDrag = { kind, id: node.dataset.id, node, ghost, ph, offX: start.x - rect.left, offY: start.y - rect.top, x: ev.clientX, y: ev.clientY, vx: 0, tilt: 0, lift: 0, list: null, raf: 0 };
+  document.body.classList.add('kb-dragging');
+  window.addEventListener('pointermove', kbDragMove);
+  window.addEventListener('pointerup', kbDragEnd);
+  window.addEventListener('pointercancel', kbDragEnd);
+  window.addEventListener('keydown', kbDragKey, true);
+  kbDragPlace();
+  kbDrag.raf = requestAnimationFrame(kbDragTick);
+}
+
+function kbDragKey(e) {
+  if (e.key !== 'Escape' || !kbDrag) return;
+  e.preventDefault();
+  e.stopPropagation();
+  kbDragEnd('cancel');
+}
+
+function kbDragMove(ev) {
+  const d = kbDrag;
+  if (!d) return;
+  d.vx = ev.clientX - d.x;
+  d.x = ev.clientX;
+  d.y = ev.clientY;
+  kbDragPlace();
+}
+
+function kbDragTick() {
+  const d = kbDrag;
+  if (!d) return;
+  const lean = Math.max(-9, Math.min(9, d.vx * 0.7));
+  d.tilt += (lean - d.tilt) * 0.2;
+  d.vx *= 0.82;
+  d.lift = Math.min(1, d.lift + 0.14);
+  const angle = KB_REDUCED ? 0 : (d.kind === 'card' ? d.tilt : d.tilt / 3);
+  d.ghost.style.transform = `translate3d(${d.x - d.offX}px, ${d.y - d.offY}px, 0) rotate(${angle.toFixed(2)}deg) scale(${(1 + 0.04 * d.lift).toFixed(3)})`;
+  const board = $('kanbanBoard');
+  const br = board.getBoundingClientRect();
+  const edge = 90;
+  let sx = 0;
+  if (d.x < br.left + edge) sx = -Math.min(18, Math.ceil((br.left + edge - d.x) / 5));
+  else if (d.x > br.right - edge) sx = Math.min(18, Math.ceil((d.x - br.right + edge) / 5));
+  if (sx) {
+    board.scrollLeft += sx;
+    kbWheel.target = board.scrollLeft;
+  }
+  let sy = 0;
+  if (d.kind === 'card' && d.list) {
+    const lr = d.list.getBoundingClientRect();
+    if (d.y < lr.top + 50) sy = -Math.min(16, Math.ceil((lr.top + 50 - d.y) / 4));
+    else if (d.y > lr.bottom - 50) sy = Math.min(16, Math.ceil((d.y - lr.bottom + 50) / 4));
+    if (sy) d.list.scrollTop += sy;
+  }
+  if (sx || sy) kbDragPlace();
+  d.raf = requestAnimationFrame(kbDragTick);
+}
+
+/** Плавно двигает соседей, пока переставляем заглушку. */
+function kbFlipMove(selector, mutate) {
+  const board = $('kanbanBoard');
+  const nodes = [...board.querySelectorAll(selector)];
+  const before = nodes.map((n) => n.getBoundingClientRect());
+  mutate();
+  if (KB_REDUCED) return;
+  nodes.forEach((n, i) => {
+    const r = n.getBoundingClientRect();
+    const dx = before[i].left - r.left;
+    const dy = before[i].top - r.top;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+    n.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 220, easing: KB_EASE });
+  });
+}
+
+function kbDragPlace() {
+  const d = kbDrag;
+  const board = $('kanbanBoard');
+  const cols = [...board.querySelectorAll('.kb-col:not(.kb-lifted)')];
+  if (!cols.length) return;
+  if (d.kind === 'card') {
+    let col = null;
+    let best = Infinity;
+    for (const c of cols) {
+      const r = c.getBoundingClientRect();
+      const dist = d.x < r.left ? r.left - d.x : d.x > r.right ? d.x - r.right : 0;
+      if (dist < best) {
+        best = dist;
+        col = c;
+      }
+    }
+    const list = col.querySelector('.kb-list');
+    d.list = list;
+    for (const c of cols) c.classList.toggle('drop', c === col);
+    const cards = [...list.querySelectorAll('.kb-card:not(.kb-lifted):not(.kb-hidden)')];
+    const before = cards.find((c) => {
+      const r = c.getBoundingClientRect();
+      return d.y < r.top + r.height / 2;
+    }) || null;
+    if (d.ph.parentNode === list && (before ? d.ph.nextElementSibling === before : !kbNextCardNode(d.ph))) return;
+    kbFlipMove('.kb-card:not(.kb-lifted)', () => {
+      if (before) list.insertBefore(d.ph, before);
+      else list.append(d.ph);
+    });
+  } else {
+    const before = cols.find((c) => {
+      const r = c.getBoundingClientRect();
+      return d.x < r.left + r.width / 2;
+    }) || board.querySelector('.kb-add-col');
+    if (d.ph.nextElementSibling === before || (d.ph.nextElementSibling === d.node && d.node.nextElementSibling === before)) return;
+    kbFlipMove('.kb-col:not(.kb-lifted), .kb-add-col', () => board.insertBefore(d.ph, before));
+  }
+}
+
+function kbNextCardNode(node) {
+  for (let n = node.nextElementSibling; n; n = n.nextElementSibling) {
+    if (n.classList.contains('kb-card') && !n.classList.contains('kb-lifted')) return n;
+  }
+  return null;
+}
+
+function kbDragEnd(ev) {
+  const d = kbDrag;
+  if (!d) return;
+  const cancelled = ev === 'cancel' || (ev && ev.type === 'pointercancel');
+  cancelAnimationFrame(d.raf);
+  window.removeEventListener('pointermove', kbDragMove);
+  window.removeEventListener('pointerup', kbDragEnd);
+  window.removeEventListener('pointercancel', kbDragEnd);
+  window.removeEventListener('keydown', kbDragKey, true);
+  document.body.classList.remove('kb-dragging');
+  const board = $('kanbanBoard');
+  board.querySelectorAll('.kb-col.drop').forEach((n) => n.classList.remove('drop'));
+  let payload = null;
+  if (!cancelled) {
+    if (d.kind === 'card') {
+      const next = kbNextCardNode(d.ph);
+      payload = { columnId: d.ph.parentNode.dataset.columnId, beforeCardId: next ? next.dataset.id : '' };
+    } else {
+      payload = { ids: [...board.querySelectorAll('.kb-col, .kb-col-ph')].filter((n) => n !== d.node).map((n) => (n === d.ph ? d.id : n.dataset.id)) };
+    }
+  }
+  if (cancelled) {
+    d.ph.remove();
+    d.node.classList.remove('kb-lifted');
+  }
+  const target = cancelled ? d.node : d.ph;
+  const r = target.getBoundingClientRect();
+  const finish = () => {
+    d.ghost.remove();
+    if (!cancelled) {
+      d.ph.replaceWith(d.node);
+      d.node.classList.remove('kb-lifted');
+    }
+    if (!KB_REDUCED) d.node.animate([{ transform: 'scale(1.03)' }, { transform: 'none' }], { duration: 260, easing: KB_EASE });
+    kbDrag = null;
+    if (payload) kbCommitDrag(d, payload);
+    else if (kbRenderPending) {
+      kbRenderPending = false;
+      renderKanbanBoard();
+    }
+  };
+  if (KB_REDUCED) return finish();
+  const fly = d.ghost.animate([{ transform: d.ghost.style.transform }, { transform: `translate3d(${r.left}px, ${r.top}px, 0) rotate(0deg) scale(1)` }], { duration: 220, easing: KB_EASE, fill: 'forwards' });
+  fly.onfinish = finish;
+  fly.oncancel = finish;
+}
+
+async function kbCommitDrag(d, payload) {
+  const board = kbBoard();
+  kbRenderPending = false;
+  if (!board) return;
+  if (d.kind === 'card') {
+    const card = board.cards.find((c) => c.id === d.id);
+    if (!card) return renderKanbanBoard();
+    const siblings = board.cards.filter((c) => c.columnId === card.columnId);
+    const nextNow = siblings[siblings.indexOf(card) + 1];
+    if (card.columnId === payload.columnId && (nextNow ? nextNow.id : '') === payload.beforeCardId) return renderKanbanBoard();
+    const rest = board.cards.filter((c) => c.id !== d.id);
+    const at = payload.beforeCardId ? rest.findIndex((c) => c.id === payload.beforeCardId) : -1;
+    const moved = { ...card, columnId: payload.columnId };
+    if (at >= 0) rest.splice(at, 0, moved);
+    else rest.push(moved);
+    board.cards = rest;
+    renderKanbanBoard();
+    try {
+      applyKanban(await post('/api/kanban/card', { move: true, id: d.id, columnId: payload.columnId, beforeCardId: payload.beforeCardId }));
+    } catch (err) {
+      say(err.message, true);
+      kbReload();
+    }
+  } else {
+    if (payload.ids.join() === board.columns.map((c) => c.id).join()) return renderKanbanBoard();
+    const byId = new Map(board.columns.map((c) => [c.id, c]));
+    board.columns = payload.ids.map((id) => byId.get(id)).filter(Boolean);
+    renderKanbanBoard();
+    try {
+      applyKanban(await post('/api/kanban/column', { reorder: true, ids: payload.ids }));
+    } catch (err) {
+      say(err.message, true);
+      kbReload();
+    }
+  }
+}
+
+// ---------- колёсико: плавный горизонтальный скролл столбцов ----------
+
+const kbWheel = { target: 0, raf: 0 };
+
+function kbWheelTick() {
+  const board = $('kanbanBoard');
+  const diff = kbWheel.target - board.scrollLeft;
+  if (Math.abs(diff) < 1) {
+    board.scrollLeft = kbWheel.target;
+    kbWheel.raf = 0;
+    return;
+  }
+  board.scrollLeft += diff * 0.22;
+  kbWheel.raf = requestAnimationFrame(kbWheelTick);
+}
+
+$('kanbanBoard').addEventListener('wheel', (e) => {
+  const board = $('kanbanBoard');
+  if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  const list = e.target.closest('.kb-list, .kb-composer textarea');
+  if (list && list.scrollHeight > list.clientHeight + 2) {
+    const atTop = list.scrollTop <= 0 && e.deltaY < 0;
+    const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 2 && e.deltaY > 0;
+    if (!atTop && !atBottom) return;
+  }
+  const max = board.scrollWidth - board.clientWidth;
+  if (max <= 2) return;
+  e.preventDefault();
+  if (!kbWheel.raf) kbWheel.target = board.scrollLeft;
+  const step = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
+  kbWheel.target = Math.max(0, Math.min(max, kbWheel.target + step * 1.2));
+  if (KB_REDUCED) board.scrollLeft = kbWheel.target;
+  else if (!kbWheel.raf) kbWheel.raf = requestAnimationFrame(kbWheelTick);
+}, { passive: false });
+
+$('kanbanBoard').addEventListener('pointermove', (e) => {
+  const card = e.target.closest('.kb-card');
+  if (!card) return;
+  const r = card.getBoundingClientRect();
+  card.style.setProperty('--mx', `${e.clientX - r.left}px`);
+  card.style.setProperty('--my', `${e.clientY - r.top}px`);
+});
+
+// ---------- всплывающие формы ----------
+
+function kbFade(node, show, frames) {
+  if (node._kbAnim) {
+    node._kbAnim.cancel();
+    node._kbAnim = null;
+  }
+  if (show) {
+    node.hidden = false;
+    return;
+  }
+  if (node.hidden) return;
+  if (KB_REDUCED) {
+    node.hidden = true;
+    return;
+  }
+  const anim = node.animate(frames || [{ opacity: 1 }, { opacity: 0 }], { duration: 170, easing: 'ease' });
+  node._kbAnim = anim;
+  anim.onfinish = () => {
+    node.hidden = true;
+    node._kbAnim = null;
+  };
+}
+
+const KB_MODAL_OUT = [{ opacity: 1, transform: 'translate(-50%, -50%)' }, { opacity: 0, transform: 'translate(-50%, calc(-50% + 12px)) scale(.96)' }];
+
+function kbShowModal(id) {
+  for (const other of ['kbColModal', 'kbCardModal']) if (other !== id) $(other).hidden = true;
+  kbFade($('kbBackdrop'), true);
+  kbFade($(id), true);
+}
+
+function kbCloseModal(instant = false) {
+  if (!kbModal) return;
+  kbModal = null;
+  for (const id of ['kbColModal', 'kbCardModal']) {
+    if (instant) $(id).hidden = true;
+    else kbFade($(id), false, KB_MODAL_OUT);
+  }
+  if (instant) $('kbBackdrop').hidden = true;
+  else kbFade($('kbBackdrop'), false);
+  if (kanbanOpen) $('kanbanBoard').focus({ preventScroll: true });
+}
+
+function kbStepper(box, value, min, max, format) {
+  const out = el('output');
+  const set = (v, bump) => {
+    const next = Math.max(min, Math.min(max, v));
+    box.dataset.value = String(next);
+    out.textContent = format ? format(next) : String(next);
+    if (bump && !KB_REDUCED) out.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3)' }, { transform: 'scale(1)' }], { duration: 260, easing: KB_EASE });
+  };
+  const minus = el('button', { type: 'button', ariaLabel: tr('Меньше') }, '-');
+  const plus = el('button', { type: 'button', ariaLabel: tr('Больше') }, '+');
+  minus.addEventListener('click', () => set(Number(box.dataset.value) - 1, true));
+  plus.addEventListener('click', () => set(Number(box.dataset.value) + 1, true));
+  box.replaceChildren(minus, out, plus);
+  set(Number(value) || min, false);
+}
+
+function kbPeople(box, selected) {
+  const agents = kbAgents();
+  const picked = new Set(selected || []);
+  if (!agents.length) {
+    box.replaceChildren(el('p', { className: 'kb-note' }, tr('Нет агентов в проекте - заведи через «Новый агент».')));
+    return;
+  }
+  box.replaceChildren(...agents.map((a) => {
+    const node = el('button', { type: 'button', className: 'kb-person' }, kbAvatar(a.key), document.createTextNode(a.kind === 'global' ? `${a.name} · global` : a.name));
+    node.dataset.key = a.key;
+    node.setAttribute('aria-pressed', String(picked.has(a.key)));
+    node.addEventListener('click', () => node.setAttribute('aria-pressed', String(node.getAttribute('aria-pressed') !== 'true')));
+    return node;
+  }));
+}
+
+const kbPicked = (box) => [...box.querySelectorAll('.kb-person[aria-pressed="true"]')].map((n) => n.dataset.key);
+
+function kbArmDelete(btn, visible) {
+  btn.hidden = !visible;
+  btn.classList.remove('confirm');
+  btn.querySelector('span').textContent = tr('Удалить');
+  clearTimeout(btn._kbTimer);
+}
+
+/** Первый клик - «Точно удалить?», второй в течение 3 секунд - удаляет. */
+function kbConfirmDelete(btn) {
+  if (btn.classList.contains('confirm')) return true;
+  btn.classList.add('confirm');
+  btn.querySelector('span').textContent = tr('Точно удалить?');
+  btn._kbTimer = setTimeout(() => kbArmDelete(btn, !btn.hidden), 3000);
+  return false;
+}
+
+function kbSetRole(role) {
+  for (const btn of $('kbColRole').querySelectorAll('button')) btn.setAttribute('aria-pressed', String(btn.dataset.role === role));
+  $('kbColRoleNote').textContent = tr(KB_ROLE_NOTE[role] || KB_ROLE_NOTE['']);
+  kbPreviewColor();
+}
+
+const kbRoleValue = () => ($('kbColRole').querySelector('[aria-pressed="true"]') || { dataset: { role: '' } }).dataset.role;
+const kbColorValue = () => ($('kbColColors').querySelector('[aria-pressed="true"]') || { dataset: { color: '' } }).dataset.color;
+
+function kbPreviewColor() {
+  $('kbColModal').style.setProperty('--kb-c', kbColColor({ color: kbColorValue(), role: kbRoleValue() }));
+}
+
+function kbSwatches(selected) {
+  $('kbColColors').replaceChildren(...KB_COLORS.map((color) => {
+    const node = el('button', { type: 'button', className: `kb-swatch${color ? '' : ' auto'}`, title: color ? color : tr('По роли') });
+    node.dataset.color = color;
+    if (color) node.style.setProperty('--c', color);
+    node.setAttribute('aria-pressed', String(color === selected));
+    node.addEventListener('click', () => {
+      for (const n of $('kbColColors').children) n.setAttribute('aria-pressed', String(n === node));
+      kbPreviewColor();
+    });
+    return node;
+  }));
+}
+
+function kbOpenColumn(col) {
+  if (!kbBoard()) return;
+  kbModal = { type: 'col', id: col ? col.id : '' };
+  $('kbColHead').textContent = col ? tr('Столбец') : tr('Новый столбец');
+  $('kbColName').value = col ? col.title : '';
+  kbSwatches(col ? col.color || '' : '');
+  kbSetRole(col ? col.role : '');
+  kbPeople($('kbColAgents'), col ? col.agentKeys : []);
+  kbStepper($('kbColWip'), col ? col.wip : 0, 0, 99, (v) => (v ? String(v) : '∞'));
+  $('kbColError').hidden = true;
+  kbArmDelete($('kbColDelete'), !!col);
+  kbShowModal('kbColModal');
+  requestAnimationFrame(() => $('kbColName').focus());
+}
+
+function kbOpenCard(card, preset = {}) {
+  const board = kbBoard();
+  if (!board || !board.columns.length) return;
+  kbModal = { type: 'card', id: card ? card.id : '' };
+  $('kbCardHead').textContent = card ? tr('Задача') : tr('Новая задача');
+  const status = $('kbCardStatus');
+  status.hidden = !card;
+  if (card) {
+    status.className = `kb-status t-${kbTone(card.status)}`;
+    status.replaceChildren(el('i'), document.createTextNode(tr(L.KANBAN_STATUS[card.status] || card.status) + (card.round ? ` · ${card.round}/${card.maxRounds}` : '')));
+  }
+  $('kbCardName').value = card ? card.title : preset.title || '';
+  $('kbCardBody').value = card ? card.body : '';
+  setOptions($('kbCardColumn'), board.columns.map((c) => el('option', { value: c.id }, c.title)));
+  $('kbCardColumn').value = card ? card.columnId : preset.columnId || board.columns[0].id;
+  const col = kbColumn($('kbCardColumn').value);
+  $('kbCardModal').style.setProperty('--kb-c', col ? kbColColor(col) : 'var(--copper)');
+  kbStepper($('kbCardRounds'), card ? card.maxRounds : 3, 1, 20);
+  kbPeople($('kbCardAgents'), card ? card.assigneeKeys : []);
+  $('kbCardReportWrap').hidden = !(card && card.summary);
+  $('kbCardReport').textContent = (card && card.summary) || '';
+  $('kbCardError').hidden = true;
+  kbArmDelete($('kbCardDelete'), !!card);
+  kbShowModal('kbCardModal');
+  requestAnimationFrame(() => {
+    const name = $('kbCardName');
+    if (name.value) {
+      $('kbCardBody').focus();
+    } else name.focus();
+  });
+}
+
+function kbFormError(id, err) {
+  const node = $(id);
+  node.hidden = false;
+  node.textContent = err.message;
+  kbShake(node);
+}
+
+$('kbBackdrop').addEventListener('click', () => kbCloseModal());
+for (const btn of document.querySelectorAll('[data-kb-close]')) btn.addEventListener('click', () => kbCloseModal());
+$('kbColRole').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-role]');
+  if (btn) kbSetRole(btn.dataset.role);
+});
+$('kbCardColumn').addEventListener('change', () => {
+  const col = kbColumn($('kbCardColumn').value);
+  if (col) $('kbCardModal').style.setProperty('--kb-c', kbColColor(col));
+});
+$('kbAddVerify').addEventListener('click', () => {
+  const ta = $('kbCardBody');
+  if (!/^\s*verify\s*:/im.test(ta.value)) ta.value = `${ta.value.replace(/\s+$/, '')}${ta.value.trim() ? '\n\n' : ''}verify:\n- `;
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+});
+
+$('kbColForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const title = $('kbColName').value.trim();
+  if (!title) {
+    kbShake($('kbColName'));
+    $('kbColName').focus();
+    return;
+  }
+  const isNew = !kbModal || !kbModal.id;
+  try {
+    applyKanban(await post('/api/kanban/column', {
+      id: kbModal && kbModal.id ? kbModal.id : undefined,
+      title,
+      role: kbRoleValue(),
+      color: kbColorValue(),
+      wip: Number($('kbColWip').dataset.value) || 0,
+      agentKeys: kbPicked($('kbColAgents')),
+    }));
+    kbCloseModal();
+    if (isNew) {
+      const board = $('kanbanBoard');
+      board.scrollTo({ left: board.scrollWidth, behavior: KB_REDUCED ? 'auto' : 'smooth' });
+    }
+  } catch (err) {
+    kbFormError('kbColError', err);
+  }
+});
+
+$('kbColDelete').addEventListener('click', async () => {
+  if (!kbModal || !kbModal.id || !kbConfirmDelete($('kbColDelete'))) return;
+  try {
+    applyKanban(await post('/api/kanban/column', { delete: true, id: kbModal.id }));
+    kbCloseModal();
+  } catch (err) {
+    kbFormError('kbColError', err);
+  }
+});
+
+$('kbCardForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const title = $('kbCardName').value.trim();
+  if (!title) {
+    kbShake($('kbCardName'));
+    $('kbCardName').focus();
+    return;
+  }
+  try {
+    applyKanban(await post('/api/kanban/card', {
+      id: kbModal && kbModal.id ? kbModal.id : undefined,
+      title,
+      body: $('kbCardBody').value,
+      columnId: $('kbCardColumn').value,
+      assigneeKeys: kbPicked($('kbCardAgents')),
+      maxRounds: Number($('kbCardRounds').dataset.value) || 3,
+    }));
+    kbCloseModal();
+  } catch (err) {
+    kbFormError('kbCardError', err);
+  }
+});
+
+$('kbCardForm').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    $('kbCardForm').requestSubmit();
+  }
+});
+$('kbColName').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    $('kbColForm').requestSubmit();
+  }
+});
+
+$('kbCardDelete').addEventListener('click', async () => {
+  if (!kbModal || !kbModal.id || !kbConfirmDelete($('kbCardDelete'))) return;
+  try {
+    applyKanban(await post('/api/kanban/card', { delete: true, id: kbModal.id }));
+    kbCloseModal();
+  } catch (err) {
+    kbFormError('kbCardError', err);
+  }
+});
+
+// ---------- шапка канбана ----------
 
 $('kanbanBtn').addEventListener('click', () => (kanbanOpen ? closeKanban() : openKanban()));
 $('kanbanClose').addEventListener('click', closeKanban);
-// Колёсико на доске → горизонтальный скролл столбцов (если курсор не над вертикальным списком карточек, который ещё скроллится)
-$('kanbanBoard').addEventListener('wheel', (e) => {
-  const board = $('kanbanBoard');
-  if (!board || board.hidden) return;
-  const cards = e.target.closest('.kanban-cards');
-  if (cards && cards.scrollHeight > cards.clientHeight + 2) {
-    const atTop = cards.scrollTop <= 0 && e.deltaY < 0;
-    const atBottom = cards.scrollTop + cards.clientHeight >= cards.scrollHeight - 2 && e.deltaY > 0;
-    if (!atTop && !atBottom) return;
-  }
-  if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
-  if (board.scrollWidth <= board.clientWidth + 2) return;
-  e.preventDefault();
-  board.scrollLeft += e.deltaY + e.deltaX;
-}, { passive: false });
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && kanbanOpen && !kanbanEditing) closeKanban();
-  else if (e.key === 'Escape' && kanbanOpen && kanbanEditing) showKanbanBoard();
+$('kanbanNewCard').addEventListener('click', () => kbOpenCard(null));
+$('kanbanNewCol').addEventListener('click', () => kbOpenColumn(null));
+$('kanbanSearch').addEventListener('input', () => {
+  kbQuery = $('kanbanSearch').value;
+  kbApplySearch();
 });
-$('kanbanNewCard').addEventListener('click', () => showKanbanCardForm(null));
-$('kanbanNewCol').addEventListener('click', () => showKanbanColForm(null));
 $('kanbanScan').addEventListener('click', async () => {
+  const btn = $('kanbanScan');
+  btn.disabled = true;
+  btn.classList.add('busy');
   try {
-    applyKanban(await post('/api/kanban/scan', {}));
-    say(tr('Скан канбана выполнен.'));
+    const result = await post('/api/kanban/scan', {});
+    applyKanban(result);
+    say(result.sent ? tr('Скан: отправлено задач - {n}.', { n: result.sent }) : tr('Скан: новых задач для агентов нет.'));
   } catch (err) {
     say(err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('busy');
   }
 });
-$('kanbanCardCancel').addEventListener('click', showKanbanBoard);
-$('kanbanColCancel').addEventListener('click', showKanbanBoard);
-$('kanbanCardForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  $('kanbanCardError').hidden = true;
-  try {
-    applyKanban(await post('/api/kanban/card', {
-      id: kanbanEditing && kanbanEditing.id,
-      title: $('kanbanCardTitle').value,
-      body: $('kanbanCardBody').value,
-      columnId: $('kanbanCardColumn').value,
-      assigneeKeys: selectedKanbanAgents($('kanbanCardAgents')),
-    }));
-    showKanbanBoard();
-  } catch (err) {
-    $('kanbanCardError').hidden = false;
-    $('kanbanCardError').textContent = err.message;
+document.addEventListener('keydown', (e) => {
+  if (!kanbanOpen || e.defaultPrevented) return;
+  if (e.key === 'Escape') {
+    if (kbModal) kbCloseModal();
+    else if (document.activeElement === $('kanbanSearch') && kbQuery) {
+      $('kanbanSearch').value = '';
+      kbQuery = '';
+      kbApplySearch();
+    } else closeKanban();
+    return;
   }
-});
-$('kanbanCardDelete').addEventListener('click', async () => {
-  if (!kanbanEditing || !kanbanEditing.id) return;
-  try {
-    applyKanban(await post('/api/kanban/card', { delete: true, id: kanbanEditing.id }));
-    showKanbanBoard();
-  } catch (err) {
-    say(err.message, true);
-  }
-});
-$('kanbanColForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  $('kanbanColError').hidden = true;
-  try {
-    applyKanban(await post('/api/kanban/column', {
-      id: kanbanEditing && kanbanEditing.id,
-      title: $('kanbanColTitle').value,
-      role: $('kanbanColRole').value,
-      wip: Number($('kanbanColWip').value) || 0,
-      agentKeys: selectedKanbanAgents($('kanbanColAgents')),
-    }));
-    showKanbanBoard();
-  } catch (err) {
-    $('kanbanColError').hidden = false;
-    $('kanbanColError').textContent = err.message;
-  }
-});
-$('kanbanColDelete').addEventListener('click', async () => {
-  if (!kanbanEditing || !kanbanEditing.id) return;
-  try {
-    applyKanban(await post('/api/kanban/column', { delete: true, id: kanbanEditing.id }));
-    showKanbanBoard();
-  } catch (err) {
-    say(err.message, true);
+  const typing = e.target.closest && e.target.closest('input, textarea, select, [contenteditable]');
+  if (typing || kbModal || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'n' || e.key === 'т') {
+    e.preventDefault();
+    const first = kbBoard() && kbBoard().columns[0];
+    if (first) kbStartComposer(first.id);
+  } else if (e.key === '/') {
+    e.preventDefault();
+    $('kanbanSearch').focus();
   }
 });
 
@@ -8609,8 +9556,6 @@ function syncAbout() {
   if (copy) {
     copy.replaceChildren(
       document.createTextNode('© '),
-      el('a', { href: 'https://github.com/jtapes', target: '_blank', rel: 'noopener noreferrer' }, 'JTapes'),
-      document.createTextNode(` ${tr('и')} `),
       el('a', { href: 'https://github.com/SafonovAG', target: '_blank', rel: 'noopener noreferrer' }, 'SafonovAG'),
     );
   }

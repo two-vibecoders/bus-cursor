@@ -23,29 +23,22 @@
 
 ## Что это
 
-**Bus Cursor** — файловая шина между агентами Cursor и пользователем: сообщения лежат во входящих, пока их не прочтут. Адресация по **имени** агента, типы `TASK` · `QUESTION` · `DONE`, фоновый подъём через Cursor CLI (`agent -p`).
-
-Это адаптация [claude-bus](https://github.com/jtapes/claude-bus) (Claude Code) под Cursor IDE. Пара для Claude Code в этой org — [bus-claude](https://github.com/two-vibecoders/bus-claude).
-
-| | |
-|---|---|
-| Оригинал | [jtapes/claude-bus](https://github.com/jtapes/claude-bus) · [JTapes](https://github.com/jtapes) |
-| Claude Code (org) | [two-vibecoders/bus-claude](https://github.com/two-vibecoders/bus-claude) |
-| Адаптация под Cursor | [SafonovAG](https://github.com/SafonovAG) · [two-vibecoders/bus-cursor](https://github.com/two-vibecoders/bus-cursor) |
+**Bus Cursor** - файловая шина между агентами Cursor и пользователем: сообщения лежат во входящих, пока их не прочтут. Адресация по **имени** агента, типы `TASK` · `QUESTION` · `DONE`, фоновый подъём через Cursor CLI (`agent -p`).
 
 Текущая версия: см. [`release.json`](release.json) и [релизы GitHub](https://github.com/two-vibecoders/bus-cursor/releases).
 
 ## Возможности
 
-- **UI** — лента диалогов, агенты слева, композер с вложениями и `@`-файлами проекта
-- **Роли** — создание и правка агентов, доступ по галочкам, «Переписать с ИИ»
-- **Фон** — агент поднимается сам (`agent -p`); live-ход, stop / resume, btw
-- **Диалоги** — вкладки, сжатие в сводку, история закрытых
-- **Расписание** — cron-задачи (демон scheduler)
-- **Лимиты Cursor** — Auto / API / Grok Bot в шапке (как в кабинете Cursor)
-- **Интерфейс** — светлая и тёмная тема, русский / English, видеофон
-- **О приложении** — версия, проверка обновлений, ссылки на репозитории
-- **Обновления** — кнопка в шапке при новой версии на GitHub (нужен `release.json`)
+- **UI** - лента диалогов, агенты слева, композер с вложениями и `@`-файлами проекта
+- **Роли** - создание и правка агентов, доступ по галочкам, «Переписать с ИИ»
+- **Фон** - агент поднимается сам (`agent -p`); live-ход, stop / resume, btw
+- **Диалоги** - вкладки, сжатие в сводку, история закрытых
+- **Канбан** - отдельное пространство: столбцы с агентами, карточки перетаскиванием, verify-цикл с проверяющим
+- **Расписание** - cron-задачи (демон scheduler)
+- **Лимиты Cursor** - Auto / API / Grok Bot в шапке (как в кабинете Cursor)
+- **Интерфейс** - светлая и тёмная тема, русский / English, видеофон
+- **О приложении** - версия, проверка обновлений, ссылка на репозиторий
+- **Обновления** - кнопка в шапке при новой версии на GitHub (нужен `release.json`)
 
 ## Требования
 
@@ -53,14 +46,14 @@
 - [Cursor](https://cursor.com/) IDE
 - [Cursor CLI](https://cursor.com/docs/cli/overview) (`agent`)
 
-Windows — CLI:
+Windows - CLI:
 
 ```powershell
 irm 'https://cursor.com/install?win32=true' | iex
 agent login
 ```
 
-macOS / Linux — см. [документацию Cursor CLI](https://cursor.com/docs/cli/overview), затем `agent login`.
+macOS / Linux - см. [документацию Cursor CLI](https://cursor.com/docs/cli/overview), затем `agent login`.
 
 ## Установка
 
@@ -99,19 +92,19 @@ node "$env:USERPROFILE\.cursor\skills\bus-cursor\scripts\bus.js" ui --app
 node ~/.cursor/skills/bus-cursor/scripts/bus.js ui --app
 ```
 
-`--app` открывает отдельное окно Chrome/Edge без вкладок. Без флага — обычная вкладка браузера (`127.0.0.1:4781`, при занятости — следующий порт).
+`--app` открывает отдельное окно Chrome/Edge без вкладок. Без флага - обычная вкладка браузера (`127.0.0.1:4781`, при занятости - следующий порт).
 
 1. Выбери каталог проекта Cursor в шапке  
-2. **Новый агент** — имя, роль, модель  
+2. **Новый агент** - имя, роль, модель  
 3. Отправь `TASK` или `QUESTION`  
 
 Повторно поставить ярлык: кнопка в настройках (⚙) или `bus.js ui --shortcut`.
 
 ## Обновления
 
-В шапке появляется кнопка обновления, если на GitHub вышел релиз новее локального `release.json`. В **О приложении** (кнопка внизу списка агентов) — текущая версия и «Проверить обновления».
+В шапке появляется кнопка обновления, если на GitHub вышел релиз новее локального `release.json`. В **О приложении** (кнопка внизу списка агентов) - текущая версия и «Проверить обновления».
 
-Установка подтягивает файлы скилла из релиза; копия прежней папки — `skills/bus-cursor.backup`. После установки нажми **Перезапустить** в модалке.
+Установка подтягивает файлы скилла из релиза; копия прежней папки - `skills/bus-cursor.backup`. После установки нажми **Перезапустить** в модалке.
 
 ## Использование
 
@@ -140,7 +133,7 @@ node $bus send review TASK "проверь правки"
 
 ### В Cursor IDE
 
-Скилл отвечает на запросы вроде «открой Bus Cursor», «что во входящих», «пусть X сделает». Хуки и правило подсказывают агенту читать `inbox`. Подробности — [`SKILL.md`](SKILL.md) и [`references/cursor.md`](references/cursor.md).
+Скилл отвечает на запросы вроде «открой Bus Cursor», «что во входящих», «пусть X сделает». Хуки и правило подсказывают агенту читать `inbox`. Подробности - [`SKILL.md`](SKILL.md) и [`references/cursor.md`](references/cursor.md).
 
 ## Данные
 
@@ -152,17 +145,16 @@ node $bus send review TASK "проверь правки"
 
 ## Документация
 
-- [`SKILL.md`](SKILL.md) — кратко для агента Cursor  
-- [`references/cursor.md`](references/cursor.md) — Cursor IDE и CLI  
-- [`references/roles.md`](references/roles.md) — роли и доступ  
-- [`references/ui.md`](references/ui.md) — поведение UI  
-- [`references/schedule.md`](references/schedule.md) — расписание  
-- [`references/admin.md`](references/admin.md) — команды оркестратора  
+- [`SKILL.md`](SKILL.md) - кратко для агента Cursor  
+- [`references/cursor.md`](references/cursor.md) - Cursor IDE и CLI  
+- [`references/roles.md`](references/roles.md) - роли и доступ  
+- [`references/ui.md`](references/ui.md) - поведение UI  
+- [`references/schedule.md`](references/schedule.md) - расписание  
+- [`references/admin.md`](references/admin.md) - команды оркестратора  
 
 ## Авторы
 
-- [JTapes](https://github.com/jtapes) — [claude-bus](https://github.com/jtapes/claude-bus)  
-- [SafonovAG](https://github.com/SafonovAG) — адаптация под Cursor; org [two-vibecoders](https://github.com/two-vibecoders) ([bus-cursor](https://github.com/two-vibecoders/bus-cursor), [bus-claude](https://github.com/two-vibecoders/bus-claude))  
+- [SafonovAG](https://github.com/SafonovAG) · org [two-vibecoders](https://github.com/two-vibecoders)  
 
 ---
 

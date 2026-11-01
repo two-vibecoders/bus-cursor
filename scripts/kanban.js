@@ -59,8 +59,11 @@ function normColumn(col) {
   const agentKeys = Array.isArray(col.agentKeys) ? [...new Set(col.agentKeys.map(String).filter(Boolean))] : [];
   const role = col.role === 'done' || col.role === 'check' ? col.role : '';
   const wip = Math.max(0, Math.min(99, Number(col.wip) || 0));
-  return { id, title, agentKeys, wip, role };
+  return { id, title, agentKeys, wip, role, color: normColor(col.color) };
 }
+
+/** Цвет столбца - только #rrggbb; пусто - цвет по роли. */
+const normColor = (value) => (/^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value).toLowerCase() : '');
 
 function normCard(card) {
   if (!card || typeof card !== 'object') return null;
@@ -411,11 +414,11 @@ function applyAgentReport(root, { cardId, verdict, summary, resolveAgent, delive
 
 // ---------- CRUD для UI ----------
 
-function saveColumn(root, { id, title, agentKeys, wip, role, beforeId }) {
+function saveColumn(root, { id, title, agentKeys, wip, role, color, beforeId }) {
   return update(root, (b) => {
     let col = id ? b.columns.find((c) => c.id === id) : null;
     if (!col) {
-      col = normColumn({ id: id || newId(), title, agentKeys, wip, role });
+      col = normColumn({ id: id || newId(), title, agentKeys, wip, role, color });
       if (beforeId) {
         const at = b.columns.findIndex((c) => c.id === beforeId);
         if (at >= 0) b.columns.splice(at, 0, col);
@@ -426,6 +429,7 @@ function saveColumn(root, { id, title, agentKeys, wip, role, beforeId }) {
       if (agentKeys !== undefined) col.agentKeys = [...new Set((agentKeys || []).map(String).filter(Boolean))];
       if (wip !== undefined) col.wip = Math.max(0, Math.min(99, Number(wip) || 0));
       if (role !== undefined) col.role = role === 'done' || role === 'check' ? role : '';
+      if (color !== undefined) col.color = normColor(color);
     }
     if (col.role === 'done') {
       for (const other of b.columns) if (other.id !== col.id && other.role === 'done') other.role = '';
