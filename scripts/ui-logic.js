@@ -1055,11 +1055,37 @@
     return /\s/.test(out) ? `@"${out}"` : `@${out}`;
   }
 
+  /** Бейдж Канбана: active + alert по статусам карточек. */
+  function kanbanBadge(board) {
+    const cards = (board && board.cards) || [];
+    let active = 0;
+    let alert = 0;
+    for (const c of cards) {
+      if (c.status === 'done') continue;
+      if (['open', 'running', 'partial', 'failed', 'needs_rework', 'needs_answer'].includes(c.status)) {
+        active += 1;
+        if (c.status === 'failed' || c.status === 'needs_rework' || c.status === 'needs_answer') alert += 1;
+      }
+    }
+    return { count: active, alert: alert > 0 };
+  }
+
+  const KANBAN_STATUS = {
+    open: N('открыта'),
+    running: N('в работе'),
+    partial: N('частично'),
+    failed: N('fail'),
+    needs_rework: N('доработка'),
+    needs_answer: N('нужен ответ'),
+    done: N('готово'),
+  };
+
   return {
     dirKey, dirName, dirGroups, feedScope, atToken, fileScore, fileMatches, mentionPath,
     ORCH_HUE, hue, assignHues, duration, rateLimits, tabContext, messageUsage, pairKey, pairOf, selectedPair, threadKey, threadOf, viewPair, viewThread, covered, tokensOf, summaryTokens, weightReport, sizeOf, short, messageInHere, passes, splitByQuery, markdown, markdownInline, unreadIds, readTarget, nextSelection, feedItems, pairInfo, groupAgents, agentStatus, clock, elapsed, runMark, liveLines, liveLast, canBtw, canEvolve, wakeActionNote, blockedNote, writable, nameOf, dictated, spaceTap, voiceNote, lineDiff, raisedNote, sentNote, dialogTarget, dialogTitle, dialogTabs, validAgentName, sanitizeAgentName,
     SCHEDULE_MINUTE_STEPS, SCHEDULE_HOUR_STEPS, buildScheduleCron, scheduleCronPreset, scheduleTarget, scheduleNextLabel, scheduleLastNote, scheduleDaemonNote, scheduleBadge, scheduleGroups, validScheduleName, isFrequentError,
     ACCESS_PRESETS, accessPreset, accessDenied, accessFromDenied, accessWeight, accessDeltaLabel,
     setThresholds, settingsDirty, settingsFieldError,
+    kanbanBadge, KANBAN_STATUS,
   };
 });

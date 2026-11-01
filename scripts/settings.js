@@ -29,6 +29,7 @@ const GROUPS = [
   { key: 'agent', label: N('Промпт агентов') },
   { key: 'orchestrator', label: N('Оркестраторы') },
   { key: 'schedule', label: N('Расписание') },
+  { key: 'kanban', label: N('Канбан и verify') },
   { key: 'ui', label: N('Интерфейс') },
 ];
 
@@ -82,6 +83,13 @@ const SCHEMA = [
     hint: N('Сколько минут даётся задаче по расписанию, если в ней самой таймаут не указан.') },
   { key: 'schedule.minGapMin', group: 'schedule', type: 'int', default: 5, min: 1, max: 60, unit: N('мин'), label: N('Минимальный интервал'),
     hint: N('Расписание чаще этого интервала шина не примет (из консоли - только с --force). Защита от задачи, которая жжёт токены каждую минуту.') },
+
+  { key: 'verify.maxRounds', group: 'kanban', type: 'int', default: 3, min: 1, max: 20, unit: N('кругов'), label: N('Кругов verify до доработки'),
+    hint: N('Сколько раз checker может вернуть FAIL и снова поднять maker. Дальше карточка - «нужна доработка».') },
+  { key: 'kanban.scanMin', group: 'kanban', type: 'int', default: 5, min: 1, max: 120, unit: N('мин'), label: N('Интервал скана Канбана'),
+    hint: N('Пока открыт UI, шина раз в столько минут смотрит карточки в рабочих столбцах и шлёт TASK назначенным агентам. При закрытом UI скан не идёт.') },
+  { key: 'kanban.defaultChecker', group: 'kanban', type: 'text', default: '', max: 31, optional: true, unit: N('имя'), label: N('Checker по умолчанию'),
+    hint: N('Имя субагента-проверщика, если в карточке нет checker: и у столбца «Проверка» нет агентов. Пусто - без авто-checker.') },
 
   { key: 'ui.showLoadFrom', group: 'ui', type: 'int', default: 1000, min: 0, max: 100000, unit: N('токенов'), label: N('Показывать вес переписки от'),
     hint: N('С какого веса непрочитанной и несжатой переписки он показывается рядом с агентом в списке.') },

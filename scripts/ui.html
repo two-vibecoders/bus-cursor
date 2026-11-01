@@ -1367,7 +1367,219 @@
   /* ---- расписание ---- */
   .sched-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; margin-left: 2px; border-radius: 999px; background: var(--glass-3); color: var(--ink); font: 700 12px/16px var(--label); }
   .sched-badge.alert { background: var(--copper); color: var(--on-copper); box-shadow: 0 0 10px var(--copper-glow); }
-  #scheduleBtn.alert { border-color: var(--copper); color: var(--copper); }
+  #scheduleBtn.alert, #kanbanBtn.alert { border-color: var(--copper); color: var(--copper); }
+
+  /* ---- канбан: полноэкранная страница ---- */
+  .kanban-page {
+    position: fixed; inset: 0; z-index: 40;
+    display: flex; flex-direction: column; min-height: 0;
+    background: var(--bg);
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+    animation: kanban-in .42s var(--ease);
+  }
+  .kanban-page[hidden] { display: none !important; }
+  @keyframes kanban-in {
+    from { opacity: 0; transform: translateY(14px) scale(.988); }
+    to { opacity: 1; transform: none; }
+  }
+  .kanban-top {
+    flex: none; display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap;
+    padding: 14px 22px; border-bottom: 1px solid var(--line);
+    background: var(--glass-1); box-shadow: var(--shadow);
+    position: relative;
+  }
+  .kanban-top::after {
+    content: ""; position: absolute; left: 22px; right: 22px; bottom: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--copper-glow), transparent);
+    pointer-events: none;
+  }
+  .kanban-brand { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 180px; }
+  .kanban-brand b {
+    font: 700 20px/1.15 var(--label); letter-spacing: -.02em;
+    background: linear-gradient(120deg, var(--ink) 40%, color-mix(in srgb, var(--copper) 70%, var(--ink)));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .kanban-brand span { font-size: 12px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52vw; }
+  .kanban-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .kanban-actions .send { min-height: var(--h); box-shadow: 0 0 0 0 transparent; transition: box-shadow .25s var(--ease), transform .2s var(--ease); }
+  .kanban-actions .send:hover { box-shadow: 0 0 18px -6px var(--copper-glow); transform: translateY(-1px); }
+  .kanban-actions .ghost { transition: border-color .2s, color .2s, transform .2s var(--ease); }
+  .kanban-actions .ghost:hover { transform: translateY(-1px); }
+  .kanban-stage {
+    flex: 1; min-height: 0; display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    position: relative;
+    background:
+      radial-gradient(900px 420px at 12% -10%, color-mix(in srgb, var(--copper) 10%, transparent), transparent 60%),
+      radial-gradient(700px 380px at 88% 110%, color-mix(in srgb, var(--question) 8%, transparent), transparent 55%),
+      var(--bg);
+  }
+  .kanban-board {
+    min-width: 0; min-height: 0; height: 100%;
+    overflow-x: auto; overflow-y: hidden;
+    display: flex; gap: 16px; align-items: stretch;
+    padding: 22px 22px 28px;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    overscroll-behavior-x: contain;
+  }
+  .kanban-board:focus-visible { outline: 2px solid var(--copper); outline-offset: -4px; border-radius: var(--r); }
+  .kanban-board::-webkit-scrollbar { height: 9px; }
+  .kanban-board::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--copper) 35%, var(--line-strong));
+    border-radius: 999px;
+  }
+  .kanban-board::-webkit-scrollbar-track { background: transparent; }
+  .kanban-col {
+    flex: 0 0 clamp(268px, 24vw, 340px);
+    display: flex; flex-direction: column; min-height: 0; height: 100%;
+    background: var(--glass-1); border: 1px solid var(--line); border-radius: var(--r-lg);
+    box-shadow: var(--shadow-lift);
+    transition: border-color .22s, box-shadow .28s var(--ease), transform .28s var(--ease);
+    animation: kanban-col-in .5s var(--ease) backwards;
+    position: relative; overflow: hidden;
+  }
+  .kanban-col::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 2px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--copper) 55%, transparent), transparent);
+    opacity: .55; pointer-events: none;
+  }
+  .kanban-col:nth-child(1) { animation-delay: .02s; }
+  .kanban-col:nth-child(2) { animation-delay: .07s; }
+  .kanban-col:nth-child(3) { animation-delay: .12s; }
+  .kanban-col:nth-child(4) { animation-delay: .17s; }
+  .kanban-col:nth-child(5) { animation-delay: .22s; }
+  .kanban-col:nth-child(n+6) { animation-delay: .27s; }
+  @keyframes kanban-col-in {
+    from { opacity: 0; transform: translateY(18px) scale(.985); }
+    to { opacity: 1; transform: none; }
+  }
+  .kanban-col:hover {
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-pop);
+    transform: translateY(-2px);
+  }
+  .kanban-col.drag-over {
+    border-color: var(--copper);
+    box-shadow: 0 0 0 2px var(--copper-soft), var(--shadow-pop);
+    transform: translateY(-3px);
+  }
+  .kanban-col.drag-over::before { opacity: 1; height: 3px; background: var(--copper); }
+  .kanban-col.role-check { border-top: 3px solid var(--question); }
+  .kanban-col.role-check::before { display: none; }
+  .kanban-col.role-done { border-top: 3px solid var(--done); }
+  .kanban-col.role-done::before { display: none; }
+  .kanban-col-head {
+    flex: none; display: flex; align-items: flex-start; gap: 8px;
+    padding: 16px 14px 8px;
+  }
+  .kanban-col-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+  .kanban-col-title b { font: 700 14px/1.25 var(--label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .kanban-col-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; flex: none;
+    font: 700 11px/1 var(--label); background: var(--copper-soft); color: var(--copper);
+    transition: transform .25s var(--ease);
+  }
+  .kanban-col:hover .kanban-col-count { transform: scale(1.06); }
+  .kanban-col-meta { flex: none; padding: 0 14px 10px; font-size: 11px; color: var(--ink-soft); line-height: 1.4; }
+  .kanban-col-meta .pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px; margin: 0 4px 4px 0; border-radius: 999px;
+    background: var(--glass-2); border: 1px solid var(--line); font-size: 10px; font-weight: 600;
+    transition: border-color .2s, transform .2s var(--ease);
+  }
+  .kanban-col-meta .pill:hover { transform: translateY(-1px); }
+  .kanban-col-meta .pill.check { color: var(--question); border-color: color-mix(in srgb, var(--question) 35%, var(--line)); }
+  .kanban-col-meta .pill.done { color: var(--done); border-color: color-mix(in srgb, var(--done) 35%, var(--line)); }
+  .kanban-cards {
+    flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+    padding: 4px 10px 14px; display: flex; flex-direction: column; gap: 10px;
+    scrollbar-width: thin;
+  }
+  .kanban-cards:empty::after {
+    content: attr(data-empty);
+    display: grid; place-items: center; min-height: 88px; margin: 4px;
+    border: 1px dashed var(--line-strong); border-radius: var(--r);
+    color: var(--ink-soft); font-size: 12px; text-align: center; padding: 14px;
+    background: color-mix(in srgb, var(--glass-2) 55%, transparent);
+    transition: border-color .2s, color .2s;
+  }
+  .kanban-col.drag-over .kanban-cards:empty::after {
+    border-color: var(--copper); color: var(--copper);
+  }
+  .kanban-card {
+    background: var(--raised); border: 1px solid var(--line); border-radius: var(--r);
+    padding: 13px 13px 11px; cursor: grab;
+    box-shadow: var(--shadow);
+    transition: border-color .2s, box-shadow .28s var(--ease), transform .28s var(--ease);
+    animation: kanban-card-in .4s var(--ease) backwards;
+  }
+  @keyframes kanban-card-in {
+    from { opacity: 0; transform: translateY(10px) scale(.98); }
+    to { opacity: 1; transform: none; }
+  }
+  .kanban-card:hover {
+    border-color: color-mix(in srgb, var(--copper) 45%, var(--line));
+    box-shadow: var(--shadow-lift);
+    transform: translateY(-2px);
+  }
+  .kanban-card.dragging { opacity: .42; transform: scale(.97) rotate(.4deg); cursor: grabbing; }
+  .kanban-card-title { font: 600 13px/1.35 var(--body); margin: 0 0 8px; }
+  .kanban-card-status {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 8px; border-radius: 999px; font: 700 10px/1 var(--label);
+    letter-spacing: .04em; text-transform: uppercase;
+    background: var(--glass-2); color: var(--ink-soft); border: 1px solid var(--line);
+  }
+  .kanban-card-status.bad { color: var(--copper); background: var(--copper-soft); border-color: color-mix(in srgb, var(--copper) 40%, transparent); }
+  .kanban-card-status.run {
+    color: var(--done); background: color-mix(in srgb, var(--done) 12%, transparent);
+    border-color: color-mix(in srgb, var(--done) 35%, transparent);
+    animation: kanban-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes kanban-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--done) 14%, transparent); }
+  }
+  .kanban-card-sum { margin: 8px 0 0; font-size: 12px; color: var(--ink-soft); white-space: pre-wrap; max-height: 4.8em; overflow: hidden; line-height: 1.4; }
+  .kanban-card-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .kanban-card-actions .ghost { min-height: var(--h-sm); padding: 0 10px; font-size: 12px; }
+  .kanban-drawer {
+    width: min(420px, 100vw); border-left: 1px solid var(--line);
+    background: var(--sheet); box-shadow: var(--shadow-pop);
+    display: flex; flex-direction: column; min-height: 0;
+    animation: panel-in .35s var(--ease);
+  }
+  .kanban-drawer[hidden] { display: none !important; }
+  .kanban-form { display: grid; gap: 14px; padding: 18px 18px 24px; overflow-y: auto; min-height: 0; flex: 1; }
+  .kanban-form h3 { margin: 0; font: 700 15px var(--label); }
+  .kanban-form label { display: grid; gap: 5px; }
+  .kanban-agents { display: flex; flex-wrap: wrap; gap: 6px; }
+  .kanban-agents label.check {
+    display: inline-flex; align-items: center; gap: 6px; margin: 0;
+    padding: 5px 10px; background: var(--glass-1); border: 1px solid var(--line);
+    border-radius: 999px; font-size: 12px; transition: border-color .2s, background-color .2s, transform .2s var(--ease);
+  }
+  .kanban-agents label.check:hover { transform: translateY(-1px); }
+  .kanban-agents label.check:has(input:checked) {
+    border-color: var(--copper); background: var(--copper-soft); color: var(--copper); font-weight: 600;
+  }
+  .kanban-empty {
+    margin: auto; padding: 40px 32px; text-align: center; color: var(--ink-soft);
+    font-size: 14px; max-width: 380px; animation: fade-up .45s var(--ease);
+    border: 1px dashed var(--line-strong); border-radius: var(--r-lg);
+    background: color-mix(in srgb, var(--glass-1) 70%, transparent);
+  }
+  body.kanban-open .layout, body.kanban-open .top {
+    pointer-events: none; visibility: hidden;
+  }
+  @media (max-width: 720px) {
+    .kanban-stage { grid-template-columns: 1fr; }
+    .kanban-drawer { position: absolute; inset: 0; width: auto; z-index: 2; border-left: 0; }
+    .kanban-col { flex-basis: min(288px, 82vw); }
+    .kanban-brand b { font-size: 18px; }
+  }
 
   /* Подложка панели: затемняет и размывает страницу под ней */
   .sched-backdrop { position: fixed; inset: 0; background: var(--scrim); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); z-index: 20; animation: fade-in .3s ease; }
@@ -3161,6 +3373,7 @@
     <div class="limits-menu" id="limitsMenu" hidden role="dialog" aria-label="Лимиты Cursor"></div>
   </div>
   <button class="ghost" id="scheduleBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="schedule" title="Расписание: задачи по cron"><svg class="icon"><use href="#i-clock"/></svg>Расписание<span class="sched-badge" id="scheduleBadge" hidden>0</span></button>
+  <button class="ghost" id="kanbanBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="kanban" title="Канбан: задачи проекта и агенты по столбцам"><svg class="icon"><use href="#i-msgs"/></svg>Канбан<span class="sched-badge" id="kanbanBadge" hidden>0</span></button>
   <button class="ghost" id="weightBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="weightPanel" title="Вес переписки этой директории: столько токенов агенты затянут в контекст, прочитав несжатое. Оценка: символы / 3"><svg class="icon"><use href="#i-squeeze"/></svg><span id="weightSum"></span></button>
   <button class="ghost iconbtn update-pulse" id="updateBtn" type="button" hidden title="Доступно обновление" aria-label="Доступно обновление" aria-haspopup="dialog" aria-controls="updateModal"><svg class="icon"><use href="#i-download"/></svg></button>
   <button class="ghost" id="toggleAgents" type="button" aria-expanded="false" aria-controls="agents"><svg class="icon"><use href="#i-users"/></svg>Агенты</button>
@@ -3264,6 +3477,69 @@
     </div>
   </main>
 </div>
+
+<section class="kanban-page" id="kanban" hidden role="dialog" aria-modal="true" aria-label="Канбан">
+  <header class="kanban-top">
+    <div class="kanban-brand">
+      <b>Канбан</b>
+      <span id="kanbanHint"></span>
+    </div>
+    <div class="kanban-actions" id="kanbanToolbar">
+      <button class="send" id="kanbanNewCard" type="button"><svg class="icon"><use href="#i-plus"/></svg>Карточка</button>
+      <button class="ghost" id="kanbanNewCol" type="button"><svg class="icon"><use href="#i-plus"/></svg>Столбец</button>
+      <button class="ghost" id="kanbanScan" type="button"><svg class="icon"><use href="#i-play"/></svg>Сканировать</button>
+      <button class="ghost iconbtn" id="kanbanClose" type="button" aria-label="Закрыть канбан" title="Закрыть"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+  </header>
+  <div class="kanban-stage">
+    <div class="kanban-board" id="kanbanBoard" tabindex="0" aria-label="Столбцы канбана"></div>
+    <aside class="kanban-drawer" id="kanbanDrawer" hidden>
+      <form class="kanban-form" id="kanbanCardForm" hidden>
+        <h3 id="kanbanCardFormTitle">Карточка</h3>
+        <label><span class="label">Заголовок</span><input id="kanbanCardTitle" type="text" maxlength="200" required></label>
+        <label><span class="label">Текст и verify</span><textarea id="kanbanCardBody" rows="10" placeholder="Что сделать…
+
+verify:
+- npm test
+maxRounds: 3
+checker: reviewer"></textarea></label>
+        <label><span class="label">Столбец</span><select id="kanbanCardColumn"></select></label>
+        <div>
+          <span class="label">Агенты карточки<small>пусто - агенты столбца</small></span>
+          <div class="kanban-agents" id="kanbanCardAgents"></div>
+        </div>
+        <p class="sched-error" id="kanbanCardError" role="alert" hidden></p>
+        <div class="sched-actions">
+          <button class="send" type="submit">Сохранить</button>
+          <button class="ghost" id="kanbanCardCancel" type="button">Отмена</button>
+          <button class="ghost" id="kanbanCardDelete" type="button" hidden>Удалить</button>
+        </div>
+      </form>
+      <form class="kanban-form" id="kanbanColForm" hidden>
+        <h3 id="kanbanColFormTitle">Столбец</h3>
+        <label><span class="label">Название</span><input id="kanbanColTitle" type="text" maxlength="80" required></label>
+        <label><span class="label">Роль</span>
+          <select id="kanbanColRole">
+            <option value="">обычный</option>
+            <option value="check">проверка (checker)</option>
+            <option value="done">готово</option>
+          </select>
+        </label>
+        <label><span class="label">WIP<small>0 - без лимита</small></span><input id="kanbanColWip" type="number" min="0" max="99" value="0"></label>
+        <div>
+          <span class="label">Агенты столбца</span>
+          <div class="kanban-agents" id="kanbanColAgents"></div>
+        </div>
+        <p class="sched-error" id="kanbanColError" role="alert" hidden></p>
+        <div class="sched-actions">
+          <button class="send" type="submit">Сохранить</button>
+          <button class="ghost" id="kanbanColCancel" type="button">Отмена</button>
+          <button class="ghost" id="kanbanColDelete" type="button" hidden>Удалить</button>
+        </div>
+      </form>
+    </aside>
+  </div>
+</section>
 
 <div class="sched-backdrop" id="scheduleBackdrop" hidden></div>
 <section class="schedule" id="schedule" hidden role="dialog" aria-modal="true" aria-label="Расписание">
@@ -3775,7 +4051,7 @@ function icon(name) {
   return svg;
 }
 
-const state = { agents: [], here: {}, types: [], maxFiles: 10, maxFileBytes: 30 * 1024 * 1024, messages: new Map(), summaries: new Map(), dialogs: new Map(), closed: {}, hues: new Map(), schedule: null, access: { servers: [], weights: null }, cursorModels: [], live: {}, liveOpen: new Set() };
+const state = { agents: [], here: {}, types: [], maxFiles: 10, maxFileBytes: 30 * 1024 * 1024, messages: new Map(), summaries: new Map(), dialogs: new Map(), closed: {}, hues: new Map(), schedule: null, kanban: null, access: { servers: [], weights: null }, cursorModels: [], live: {}, liveOpen: new Set() };
 let picked = []; // загруженные, но ещё не отправленные вложения: { id, name, size }
 let showCovered = false; // в режиме пары: раскрыты ли сообщения, которые уже ушли в сводку
 const filters = { agents: new Set(), types: new Set(), q: '', dialog: null, day: null }; // dialog - открытая вкладка { pair, d }; day - YYYY-MM-DD
@@ -5521,6 +5797,8 @@ async function load() {
   renderAgents(); // после ленты: вес переписки у агентов в списке считается по ней
   if (data.error) say(data.error, true);
   if (data.update) applyUpdate(data.update);
+  if (data.kanban) applyKanban(data.kanban);
+  else applyKanban({ board: null, active: 0, alert: 0, done: 0, agents: [], hint: tr('Канбан - в каталоге проекта шины.') });
   renderLimits(data.rateLimits);
   // Модели подтянулись с API после первого ответа - обновим открытую форму агента
   if ($('agentPanel') && !$('agentPanel').hidden && !agentPanel.orchestrator) fillCursorModels($('agentCursorModel').value);
@@ -5630,6 +5908,7 @@ function connect() {
   source.addEventListener('live', (e) => applyLive(JSON.parse(e.data)));
   // Задачи или итог запуска поменялись на диске - панель, если открыта, перерисовывается; форму, которую сейчас правят, не трогаем
   source.addEventListener('schedule', (e) => applySchedule(JSON.parse(e.data)));
+  source.addEventListener('kanban', (e) => applyKanban(JSON.parse(e.data)));
   source.addEventListener('update', (e) => applyUpdate(JSON.parse(e.data)));
   source.addEventListener('update-progress', (e) => applyUpdateProgress(JSON.parse(e.data)));
   source.addEventListener('limits', (e) => renderLimits(JSON.parse(e.data)));
@@ -7416,6 +7695,284 @@ try {
 let scheduleOpen = false;
 let scheduleEditing = null; // редактируемая задача ({root,name,...}) или null - форма собирает новую
 let scheduleNote = null; // daemonNote последнего действия - показываем его, пока не пришло свежее состояние по SSE
+
+// ---------- канбан ----------
+
+let kanbanOpen = false;
+let kanbanEditing = null; // { type: 'card'|'col', id? }
+let kanbanDrag = null; // { cardId }
+
+function renderKanbanBadge() {
+  const board = state.kanban && state.kanban.board;
+  const { count, alert } = L.kanbanBadge(board);
+  $('kanbanBadge').textContent = String(count);
+  $('kanbanBadge').hidden = !count;
+  $('kanbanBadge').classList.toggle('alert', alert);
+  $('kanbanBtn').classList.toggle('alert', alert);
+}
+
+function applyKanban(data) {
+  state.kanban = data;
+  renderKanbanBadge();
+  if (!kanbanOpen) return;
+  $('kanbanHint').textContent = (data && data.hint) || '';
+  renderKanbanBoard();
+}
+
+function openKanban() {
+  kanbanOpen = true;
+  document.body.classList.add('kanban-open');
+  $('kanban').hidden = false;
+  $('kanbanBtn').setAttribute('aria-expanded', 'true');
+  showKanbanBoard();
+  getJson('/api/kanban').then((data) => applyKanban(data)).catch((err) => say(tr('Канбан не загрузился: {why}', { why: err.message }), true));
+  $('kanbanClose').focus();
+}
+
+function closeKanban() {
+  kanbanOpen = false;
+  kanbanEditing = null;
+  document.body.classList.remove('kanban-open');
+  $('kanban').hidden = true;
+  $('kanbanDrawer').hidden = true;
+  $('kanbanCardForm').hidden = true;
+  $('kanbanColForm').hidden = true;
+  $('kanbanBtn').setAttribute('aria-expanded', 'false');
+  $('kanbanBtn').focus();
+}
+
+function showKanbanBoard() {
+  kanbanEditing = null;
+  $('kanbanCardForm').hidden = true;
+  $('kanbanColForm').hidden = true;
+  $('kanbanDrawer').hidden = true;
+  renderKanbanBoard();
+}
+
+function kanbanAgentChecks(box, selected) {
+  const agents = (state.kanban && state.kanban.agents) || [];
+  const picked = new Set(selected || []);
+  box.replaceChildren(...agents.map((a) => {
+    const id = `ka-${box.id}-${a.key}`;
+    const label = el('label', { className: 'check' },
+      el('input', { type: 'checkbox', value: a.key, checked: picked.has(a.key) }),
+      document.createTextNode(`${a.name}${a.kind === 'global' ? ' · global' : ''}`));
+    return label;
+  }));
+  if (!agents.length) box.replaceChildren(el('span', { className: 'hint' }, tr('Нет агентов в проекте - заведи через «Новый агент».')));
+}
+
+function selectedKanbanAgents(box) {
+  return [...box.querySelectorAll('input[type=checkbox]:checked')].map((n) => n.value);
+}
+
+function renderKanbanBoard() {
+  const board = state.kanban && state.kanban.board;
+  const root = $('kanbanBoard');
+  $('kanbanHint').textContent = (state.kanban && state.kanban.hint) || '';
+  if (!board) {
+    root.replaceChildren(el('p', { className: 'kanban-empty' }, tr('Открой каталог проекта шины - канбан хранится там.')));
+    return;
+  }
+  root.replaceChildren(...board.columns.map((col, i) => kanbanColumnNode(board, col, i)));
+}
+
+function kanbanColumnNode(board, col, index = 0) {
+  const cards = board.cards.filter((c) => c.columnId === col.id);
+  const agentNames = (col.agentKeys || []).map((k) => {
+    const a = ((state.kanban && state.kanban.agents) || []).find((x) => x.key === k);
+    return a ? a.name : k;
+  });
+  const editCol = el('button', { type: 'button', className: 'ghost iconbtn', title: tr('Столбец'), ariaLabel: tr('Править столбец «{title}»', { title: col.title }) }, icon('edit'));
+  editCol.addEventListener('click', () => showKanbanColForm(col));
+  const titleBlock = el('div', { className: 'kanban-col-title' },
+    el('b', {}, col.title),
+    el('span', { className: 'kanban-col-count', title: tr('карточек: {n}', { n: cards.length }) }, String(cards.length)));
+  const head = el('div', { className: 'kanban-col-head' }, titleBlock, editCol);
+  const pills = [];
+  if (col.role === 'check') pills.push(el('span', { className: 'pill check' }, tr('проверка')));
+  if (col.role === 'done') pills.push(el('span', { className: 'pill done' }, tr('готово')));
+  if (col.wip) pills.push(el('span', { className: 'pill' }, `WIP ${col.wip}`));
+  for (const name of agentNames.slice(0, 4)) pills.push(el('span', { className: 'pill' }, name));
+  if (agentNames.length > 4) pills.push(el('span', { className: 'pill' }, `+${agentNames.length - 4}`));
+  if (!agentNames.length && col.role !== 'done') pills.push(el('span', { className: 'pill' }, tr('без агентов')));
+  const meta = el('div', { className: 'kanban-col-meta' }, ...pills);
+  const list = el('div', { className: 'kanban-cards' });
+  list.dataset.columnId = col.id;
+  list.dataset.empty = tr('Перетащи карточку сюда');
+  list.addEventListener('dragover', (e) => {
+    if (!kanbanDrag) return;
+    e.preventDefault();
+    list.closest('.kanban-col').classList.add('drag-over');
+  });
+  list.addEventListener('dragleave', () => list.closest('.kanban-col').classList.remove('drag-over'));
+  list.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    list.closest('.kanban-col').classList.remove('drag-over');
+    if (!kanbanDrag) return;
+    const before = e.target.closest('.kanban-card');
+    try {
+      applyKanban(await post('/api/kanban/card', { move: true, id: kanbanDrag.cardId, columnId: col.id, beforeCardId: before ? before.dataset.id : '' }));
+      renderKanbanBoard();
+    } catch (err) {
+      say(err.message, true);
+    }
+    kanbanDrag = null;
+  });
+  cards.forEach((card, i) => {
+    const node = kanbanCardNode(card);
+    node.style.animationDelay = `${Math.min(i, 8) * 0.03}s`;
+    list.append(node);
+  });
+  const roleClass = col.role === 'check' ? ' role-check' : col.role === 'done' ? ' role-done' : '';
+  const colNode = el('div', { className: `kanban-col${roleClass}` }, head, meta, list);
+  colNode.dataset.id = col.id;
+  colNode.style.animationDelay = `${Math.min(index, 8) * 0.04}s`;
+  return colNode;
+}
+
+function kanbanCardNode(card) {
+  const statusKey = L.KANBAN_STATUS[card.status] || card.status;
+  const tone = card.status === 'failed' || card.status === 'needs_rework' || card.status === 'needs_answer' ? 'bad'
+    : card.status === 'running' || card.status === 'partial' ? 'run' : '';
+  const editBtn = el('button', { type: 'button', className: 'ghost' }, tr('Изменить'));
+  editBtn.addEventListener('click', (e) => { e.stopPropagation(); showKanbanCardForm(card); });
+  const node = el('div', { className: 'kanban-card', draggable: true },
+    el('div', { className: 'kanban-card-title' }, card.title),
+    el('span', { className: `kanban-card-status ${tone}` }, tr(statusKey) + (card.round ? ` · ${card.round}/${card.maxRounds}` : '')),
+    card.summary ? el('div', { className: 'kanban-card-sum' }, card.summary) : '',
+    el('div', { className: 'kanban-card-actions' }, editBtn));
+  node.dataset.id = card.id;
+  node.addEventListener('dragstart', (e) => {
+    kanbanDrag = { cardId: card.id };
+    node.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', card.id); } catch {}
+  });
+  node.addEventListener('dragend', () => {
+    node.classList.remove('dragging');
+    kanbanDrag = null;
+  });
+  return node;
+}
+
+function showKanbanCardForm(card) {
+  kanbanEditing = { type: 'card', id: card && card.id };
+  $('kanbanColForm').hidden = true;
+  $('kanbanDrawer').hidden = false;
+  $('kanbanCardForm').hidden = false;
+  $('kanbanCardFormTitle').textContent = card ? tr('Карточка') : tr('Новая карточка');
+  $('kanbanCardTitle').value = (card && card.title) || '';
+  $('kanbanCardBody').value = (card && card.body) || `verify:\n- \nmaxRounds: 3\n`;
+  $('kanbanCardError').hidden = true;
+  $('kanbanCardDelete').hidden = !card;
+  const board = state.kanban && state.kanban.board;
+  const cols = (board && board.columns) || [];
+  $('kanbanCardColumn').replaceChildren(...cols.map((c) => el('option', { value: c.id, selected: card ? c.id === card.columnId : false }, c.title)));
+  kanbanAgentChecks($('kanbanCardAgents'), (card && card.assigneeKeys) || []);
+  $('kanbanCardTitle').focus();
+}
+
+function showKanbanColForm(col) {
+  kanbanEditing = { type: 'col', id: col && col.id };
+  $('kanbanCardForm').hidden = true;
+  $('kanbanDrawer').hidden = false;
+  $('kanbanColForm').hidden = false;
+  $('kanbanColFormTitle').textContent = col ? tr('Столбец') : tr('Новый столбец');
+  $('kanbanColTitle').value = (col && col.title) || '';
+  $('kanbanColRole').value = (col && col.role) || '';
+  $('kanbanColWip').value = String((col && col.wip) || 0);
+  $('kanbanColError').hidden = true;
+  $('kanbanColDelete').hidden = !col;
+  kanbanAgentChecks($('kanbanColAgents'), (col && col.agentKeys) || []);
+  $('kanbanColTitle').focus();
+}
+
+$('kanbanBtn').addEventListener('click', () => (kanbanOpen ? closeKanban() : openKanban()));
+$('kanbanClose').addEventListener('click', closeKanban);
+// Колёсико на доске → горизонтальный скролл столбцов (если курсор не над вертикальным списком карточек, который ещё скроллится)
+$('kanbanBoard').addEventListener('wheel', (e) => {
+  const board = $('kanbanBoard');
+  if (!board || board.hidden) return;
+  const cards = e.target.closest('.kanban-cards');
+  if (cards && cards.scrollHeight > cards.clientHeight + 2) {
+    const atTop = cards.scrollTop <= 0 && e.deltaY < 0;
+    const atBottom = cards.scrollTop + cards.clientHeight >= cards.scrollHeight - 2 && e.deltaY > 0;
+    if (!atTop && !atBottom) return;
+  }
+  if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
+  if (board.scrollWidth <= board.clientWidth + 2) return;
+  e.preventDefault();
+  board.scrollLeft += e.deltaY + e.deltaX;
+}, { passive: false });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && kanbanOpen && !kanbanEditing) closeKanban();
+  else if (e.key === 'Escape' && kanbanOpen && kanbanEditing) showKanbanBoard();
+});
+$('kanbanNewCard').addEventListener('click', () => showKanbanCardForm(null));
+$('kanbanNewCol').addEventListener('click', () => showKanbanColForm(null));
+$('kanbanScan').addEventListener('click', async () => {
+  try {
+    applyKanban(await post('/api/kanban/scan', {}));
+    say(tr('Скан канбана выполнен.'));
+  } catch (err) {
+    say(err.message, true);
+  }
+});
+$('kanbanCardCancel').addEventListener('click', showKanbanBoard);
+$('kanbanColCancel').addEventListener('click', showKanbanBoard);
+$('kanbanCardForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('kanbanCardError').hidden = true;
+  try {
+    applyKanban(await post('/api/kanban/card', {
+      id: kanbanEditing && kanbanEditing.id,
+      title: $('kanbanCardTitle').value,
+      body: $('kanbanCardBody').value,
+      columnId: $('kanbanCardColumn').value,
+      assigneeKeys: selectedKanbanAgents($('kanbanCardAgents')),
+    }));
+    showKanbanBoard();
+  } catch (err) {
+    $('kanbanCardError').hidden = false;
+    $('kanbanCardError').textContent = err.message;
+  }
+});
+$('kanbanCardDelete').addEventListener('click', async () => {
+  if (!kanbanEditing || !kanbanEditing.id) return;
+  try {
+    applyKanban(await post('/api/kanban/card', { delete: true, id: kanbanEditing.id }));
+    showKanbanBoard();
+  } catch (err) {
+    say(err.message, true);
+  }
+});
+$('kanbanColForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('kanbanColError').hidden = true;
+  try {
+    applyKanban(await post('/api/kanban/column', {
+      id: kanbanEditing && kanbanEditing.id,
+      title: $('kanbanColTitle').value,
+      role: $('kanbanColRole').value,
+      wip: Number($('kanbanColWip').value) || 0,
+      agentKeys: selectedKanbanAgents($('kanbanColAgents')),
+    }));
+    showKanbanBoard();
+  } catch (err) {
+    $('kanbanColError').hidden = false;
+    $('kanbanColError').textContent = err.message;
+  }
+});
+$('kanbanColDelete').addEventListener('click', async () => {
+  if (!kanbanEditing || !kanbanEditing.id) return;
+  try {
+    applyKanban(await post('/api/kanban/column', { delete: true, id: kanbanEditing.id }));
+    showKanbanBoard();
+  } catch (err) {
+    say(err.message, true);
+  }
+});
 
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // пн..вс для формы; значения - как в cron.js (0 - воскресенье)
 const WEEKDAY_LABEL = { 0: N('воскресенье'), 1: N('понедельник'), 2: N('вторник'), 3: N('среда'), 4: N('четверг'), 5: N('пятница'), 6: N('суббота') };

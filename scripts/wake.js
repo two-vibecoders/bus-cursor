@@ -64,6 +64,9 @@ const btwFile = (box) => path.join(box, 'wake-btw.jsonl');
 const pendingFile = (box) => path.join(box, 'wake-pending.jsonl');
 // Самоправка роли: wake-evolve.json - метка «после DONE на это сообщение разбери свою работу», role-proposal.json - черновик роли для UI
 const evolveFile = (box) => path.join(box, 'wake-evolve.json');
+// Контракт verify (канбан / TASK с verify:): wake-verify.json - ждём DONE maker/checker
+const verifyFile = (box) => path.join(box, 'wake-verify.json');
+const VERIFY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const liveFile = (box) => path.join(box, 'wake-live.jsonl');
 const contextFile = (box) => path.join(box, 'wake-context.json');
 const runsFile = (box) => path.join(box, 'wake-runs.json');
@@ -793,6 +796,20 @@ function setEvolve(box, mark) {
 }
 const dropEvolve = (box) => fs.rmSync(evolveFile(box), { force: true });
 
+function setVerify(box, mark) {
+  writeJson(verifyFile(box), { ...mark, at: Date.now() });
+}
+const dropVerify = (box) => fs.rmSync(verifyFile(box), { force: true });
+const verifyMark = (box) => {
+  const mark = readJson(verifyFile(box), null);
+  if (!mark) return null;
+  if (Date.now() - (Number(mark.at) || 0) > VERIFY_TTL_MS) {
+    dropVerify(box);
+    return null;
+  }
+  return mark;
+};
+
 const proposal = (box) => readJson(proposalFile(box), null);
 const dropProposal = (box) => fs.rmSync(proposalFile(box), { force: true });
 
@@ -958,7 +975,7 @@ async function run(name, box, cwd, by, human = false, resumeId = '') {
   if (seen && wakeLines(box).some((line) => !seen.includes(line))) request({ name, box }, { cwd, by });
 }
 
-module.exports = { liveEntries, streamContext, contexts, runs, RUN_ID, perHourOf, enabled, setEnabled, request, rewake, stop, resume, queueBtw, setEvolve, dropEvolve, proposal, dropProposal, bodyHash, state, running, runClaude, runAgent, alive, freshBlank, readJson, writeJson, isFast, setFast, hasRules, setRules, headlessSettings, RUNTIMES, runtimeOf, setRuntime, cursorModelOf, setCursorModel, pickRuntime };
+module.exports = { liveEntries, streamContext, contexts, runs, RUN_ID, perHourOf, enabled, setEnabled, request, rewake, stop, resume, queueBtw, setEvolve, dropEvolve, setVerify, dropVerify, verifyMark, proposal, dropProposal, bodyHash, state, running, runClaude, runAgent, alive, freshBlank, readJson, writeJson, isFast, setFast, hasRules, setRules, headlessSettings, RUNTIMES, runtimeOf, setRuntime, cursorModelOf, setCursorModel, pickRuntime };
 
 if (require.main === module && process.argv[2] === 'run') {
   const [name, box, cwd, by, human, resumeId] = process.argv.slice(3);

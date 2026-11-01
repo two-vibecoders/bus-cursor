@@ -572,6 +572,10 @@ function tick(rebuild = false) {
       broadcast('schedule', schedule);
     }
   }
+  // Канбан: карточки двигают агенты и UI - сверяем доску текущего проекта
+  if (snapshot.here.root && fs.existsSync(path.join(projectBus(snapshot.here.root), 'kanban.json'))) {
+    broadcastKanban(snapshot);
+  }
   const hereRoot = feedScope(snapshot.here);
   if (before) {
     const kept = knownIds();
@@ -593,6 +597,106 @@ function tick(rebuild = false) {
 // ---------- расписание ----------
 
 const scheduler = () => require('./scheduler.js'); // грузится, только когда открыли панель расписания или идёт опрос
+const kanban = () => require('./kanban.js');
+
+let kanbanSignature = '';
+let kanbanScanTimer = null;
+
+/** Доска текущего проекта + бейдж. Нет корня - пустая заглушка. */
+function kanbanState(snapshot = collectAgents()) {
+  const root = snapshot.here.root;
+  if (!root) return { ok: true, board: null, root: null, ...{ active: 0, alert: 0, done: 0 }, agents: [], hint: tr('Канбан - в каталоге проекта шины.') };
+  const board = kanban().load(root);
+  const counts = kanban().badge(board);
+  const agents = snapshot.agents
+    .filter((a) => a.registered && a.alive && (a.kind === 'global' || (a.kind === 'local' && a.root === root)))
+    .map((a) => ({ key: a.key, name: a.name, kind: a.kind }));
+  return { ok: true, board, root, ...counts, agents, scanMin: settings.get(root)['kanban.scanMin'], hint: tr('Скан идёт, пока открыт UI. Закроешь - карточки ждут.') };
+}
+
+function resolveKanbanKey(snapshot, key) {
+  const entry = snapshot.agents.find((a) => a.key === key || a.name === key);
+  if (!entry || !entry.registered) return null;
+  return resolveAgent(entry.key, snapshot);
+}
+
+function kanbanDeliverWake(snapshot, from, to, text) {
+  const sent = bus.deliver(from, to, 'TASK', text, [], { ui: true });
+  bus.autoWake(from, to, 'TASK', { here: snapshot.here.root || cwd, ringSelf: true, human: true, messageId: sent.id });
+  return sent;
+}
+
+function broadcastKanban(snapshot = collectAgents()) {
+  const state = kanbanState(snapshot);
+  const sig = JSON.stringify(state.board);
+  if (sig !== kanbanSignature) {
+    kanbanSignature = sig;
+    broadcast('kanban', state);
+  }
+  return state;
+}
+
+function kanbanAction(action, body) {
+  const snapshot = collectAgents();
+  const root = snapshot.here.root;
+  if (!root) throw new bus.BusError(tr('Канбан - только в каталоге проекта шины.'));
+  const k = kanban();
+  const orch = bus.orchestratorOf(root);
+  const resolve = (key) => resolveKanbanKey(snapshot, key);
+  const deliverAndWake = (from, to, text) => kanbanDeliverWake(snapshot, from, to, text);
+
+  if (action === 'column') {
+    if (body.delete) k.deleteColumn(root, body.id);
+    else if (body.reorder) k.reorderColumns(root, body.ids);
+    else k.saveColumn(root, body);
+  } else if (action === 'card') {
+    if (body.delete) k.deleteCard(root, body.id);
+    else if (body.move) k.moveCard(root, body);
+    else k.saveCard(root, body);
+  } else if (action === 'scan') {
+    if (!orch) throw new bus.BusError(tr('Нет оркестратора проекта.'));
+    const result = k.scan(root, { resolveAgent: resolve, deliverAndWake: (f, t, text) => deliverAndWake(f, t, text), orchestrator: orch });
+    bus.auditNote(`ui kanban scan | sent ${result.sent}`);
+    safeTick();
+    return { ...result, ...broadcastKanban(snapshot) };
+  } else throw new bus.BusError(tr('Нет такой команды канбана.'));
+  bus.auditNote(`ui kanban ${action}`);
+  return broadcastKanban(snapshot);
+}
+
+function armKanbanScan() {
+  if (kanbanScanTimer) clearInterval(kanbanScanTimer);
+  kanbanScanTimer = setInterval(() => {
+    try {
+      const snapshot = collectAgents();
+      const root = snapshot.here.root;
+      if (!root || !clients.size) return;
+      const min = Math.max(1, settings.get(root)['kanban.scanMin'] || 5);
+      const board = kanban().load(root);
+      if (board.scannedAt && Date.now() - board.scannedAt < min * 60 * 1000) return;
+      const orch = bus.orchestratorOf(root);
+      if (!orch) return;
+      const hasWork = board.cards.some((c) => {
+        const col = board.columns.find((col) => col.id === c.columnId);
+        return col && !col.role && (c.status === 'open' || c.status === 'failed' || c.status === 'needs_rework')
+          && ((c.assigneeKeys && c.assigneeKeys.length) || (col.agentKeys && col.agentKeys.length));
+      });
+      if (!hasWork) {
+        kanban().update(root, (b) => { b.scannedAt = Date.now(); return b; });
+        return;
+      }
+      kanban().scan(root, {
+        resolveAgent: (key) => resolveKanbanKey(snapshot, key),
+        deliverAndWake: (f, t, text) => kanbanDeliverWake(snapshot, f, t, text),
+        orchestrator: orch,
+      });
+      safeTick();
+      broadcastKanban(snapshot);
+    } catch (e) {
+      if (!(e instanceof bus.BusError) && !(e instanceof kanban().KanbanError)) console.error(`канбан-скан: ${e.message}`);
+    }
+  }, 60 * 1000);
+}
 
 /** Задачи всех каталогов шины + кому их можно адресовать. Демон - по heartbeat, pm2 тут не зовём: он стоит секунды. */
 function scheduleState(snapshot = collectAgents()) {
@@ -2215,6 +2319,7 @@ async function handle(req, res, port) {
     if (url.pathname === '/icon.svg') return reply(res, 200, pageFile(ICON_MARK), 'image/svg+xml');
     if (url.pathname === '/cron.js') return reply(res, 200, pageFile(CRON), 'text/javascript; charset=utf-8');
     if (url.pathname === '/api/schedule') return reply(res, 200, scheduleState());
+    if (url.pathname === '/api/kanban') return reply(res, 200, kanbanState());
     if (url.pathname === '/api/settings') return reply(res, 200, settingsState());
     if (url.pathname === '/api/ping') return reply(res, 200, { app: APP, cwd, root: projectRootOf(cwd), clients: clients.size, appMode });
     if (url.pathname === '/api/dirs') return reply(res, 200, dirsState());
@@ -2244,7 +2349,9 @@ async function handle(req, res, port) {
       const snapshot = tick(true) || { agents: [], here: { cwd, root: null, project: null }, error: tr('Реестр шины сейчас не читается.') };
       let models = cursorModels.readModels();
       if (!models.length) models = await cursorModels.refresh().catch(() => []);
-      return reply(res, 200, { ...snapshot, page: pageVersion(), types: bus.TYPES, access: accessPayload(snapshot.here.root), ...limitsPayload(snapshot.here.root), ...statePayload(feedScope(snapshot.here)), live: liveState(), update: updatePayload(), rateLimits: rateLimits.readSnapshot(), cursorModels: models });
+      let kanbanPayload = null;
+      try { kanbanPayload = kanbanState(snapshot); } catch { /* нет доски */ }
+      return reply(res, 200, { ...snapshot, page: pageVersion(), types: bus.TYPES, access: accessPayload(snapshot.here.root), ...limitsPayload(snapshot.here.root), ...statePayload(feedScope(snapshot.here)), live: liveState(), update: updatePayload(), rateLimits: rateLimits.readSnapshot(), cursorModels: models, kanban: kanbanPayload });
     }
     return reply(res, 404, { error: tr('Нет такой страницы.') });
   }
@@ -2313,6 +2420,14 @@ async function handle(req, res, port) {
     if (url.pathname === '/api/dirs/pin') return reply(res, 200, pinDir(body));
     if (url.pathname === '/api/dirs/forget') return reply(res, 200, forgetDir(body));
     if (url.pathname.startsWith('/api/schedule/')) return reply(res, 200, scheduleAction(url.pathname.slice('/api/schedule/'.length), body));
+    if (url.pathname.startsWith('/api/kanban/')) {
+      try {
+        return reply(res, 200, kanbanAction(url.pathname.slice('/api/kanban/'.length), body));
+      } catch (e) {
+        if (e instanceof kanban().KanbanError) throw new bus.BusError(e.message);
+        throw e;
+      }
+    }
     if (url.pathname === '/api/read') {
       // Ответы агентов лежат в ящике оркестратора каталога UI. Пользователь открыл диалог агента - его ответы прочитаны: забираем,
       // и сессия проекта их уже не получит
@@ -2472,6 +2587,7 @@ async function start(args = []) {
     console.log(`UI: ${url} - каталог ${cwd}. Остановить: Ctrl+C; ${appMode ? `закроешь окно - погаснет сразу` : `без открытой вкладки сам погаснет через ${IDLE_EXIT_MS / 60000} мин`}.`);
     updateTimers();
     setInterval(sweepWakes, SWEEP_MS).unref();
+    armKanbanScan();
     rateLimits.refresh().catch(() => {});
     cursorModels.refresh().catch(() => {});
     if (open) show(url);

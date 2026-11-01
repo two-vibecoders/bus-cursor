@@ -49,7 +49,7 @@ function runOf(from) {
   return m && isSubagent(from) && m[1] === from.name ? m[2] : '';
 }
 const NAME = /^[a-z0-9][a-z0-9_-]{0,30}$/; // только a-z, цифры, _ и -; без кириллицы, пробелов и прочего
-const RESERVED = ['files', 'scheduler', 'schedule', 'clear', 'prompts']; // служебные папки .cursor/bus-cursor/ (prompts - промпты подъёма Cursor) и отправитель отчётов расписания - ящик агента лёг бы поверх; clear - «history clear» снёс бы журнал вместо показа переписки с таким агентом
+const RESERVED = ['files', 'scheduler', 'schedule', 'clear', 'prompts', 'kanban']; // служебные папки .cursor/bus-cursor/ (prompts - промпты подъёма Cursor; kanban.json - доска) и отправитель отчётов расписания - ящик агента лёг бы поверх; clear - «history clear» снёс бы журнал вместо показа переписки с таким агентом
 const settings = require('./settings.js');
 // Лимиты ниже - дефолты: проект переопределяет их настройками (settings.js, шестерёнка в UI, bus.js settings)
 const MAX_LENGTH = settings.DEFAULTS['message.maxLength'];
@@ -1060,10 +1060,149 @@ function deliver(from, to, type, text, attachments = [], { ui = false, btw = fal
   const learns = evolve && isSubagent(to);
   if (learns) require('./wake.js').setEvolve(to.box, { id, from: from.name, role: roleFileOf(to), journal: busDirOf(to) });
 
+  // Контракт verify: TASK с блоком verify: → метка у maker; DONE с «verify: PASS|FAIL…» → канбан / retry
+  const kanban = require('./kanban.js');
+  const verified = ASK_TYPES.includes(type) && isSubagent(to) ? kanban.parseVerify(text) : null;
+  if (verified) {
+    require('./wake.js').setVerify(to.box, {
+      id,
+      from: from.name,
+      criteria: verified.criteria,
+      checker: verified.checker || '',
+      maxRounds: verified.maxRounds,
+      round: 0,
+      cardId: verified.cardId || '',
+      role: /(?:^|\n)role:\s*checker\b/i.test(text) ? 'checker' : 'maker',
+    });
+  }
+  if (type === 'DONE' && isSubagent(from)) {
+    try {
+      handleVerifyDone(from, to, text, id);
+    } catch (e) {
+      if (!(e instanceof kanban.KanbanError)) throw e;
+    }
+  }
+
   const run = runOf(from);
-  journalAppend(from, to, { id, t: stamp(), from: from.name, fk: KIND_CODE[from.kind], to: to.name, tk: KIND_CODE[to.kind], type, text, ...(d ? { d } : {}), ...(run ? { run } : {}), ...(files.length ? { files } : {}), ...(ui ? { ui: true } : {}), ...(injected ? { btw: true } : {}), ...(learns ? { evolve: true } : {}) }, 'fr', 'tr');
+  journalAppend(from, to, { id, t: stamp(), from: from.name, fk: KIND_CODE[from.kind], to: to.name, tk: KIND_CODE[to.kind], type, text, ...(d ? { d } : {}), ...(run ? { run } : {}), ...(files.length ? { files } : {}), ...(ui ? { ui: true } : {}), ...(injected ? { btw: true } : {}), ...(learns ? { evolve: true } : {}), ...(verified ? { verify: true } : {}) }, 'fr', 'tr');
   appendRotating(AUDIT, `${stamp()} | ${from.name} -> ${to.name} | ${type}${injected ? ' btw' : ''} | ${text.replace(/\s+/g, ' ').slice(0, AUDIT_LENGTH)}\n`, ROTATE_BYTES);
   return { id, btw: injected };
+}
+
+/**
+ * DONE от субагента: maker → checker; checker с verify: VERDICT → канбан и/или retry maker.
+ * Без метки verify и без вердикта - обычный DONE.
+ */
+function handleVerifyDone(from, to, text, messageId) {
+  const kanbanMod = require('./kanban.js');
+  const wakeMod = require('./wake.js');
+  const mark = wakeMod.verifyMark(from.box);
+  const verdict = kanbanMod.parseVerdict(text);
+  const parsed = kanbanMod.parseVerify(text);
+  const cardId = (parsed && parsed.cardId) || (mark && mark.cardId) || '';
+  const root = from.root || to.root;
+  if (!root) return;
+  if (!mark && !verdict) return;
+
+  const resolveAgent = (key) => resolveKanbanAgent(root, key);
+  const deliverAndWake = (orch, agent, body) => {
+    const sent = deliver(orch, agent, 'TASK', body, [], { ui: true });
+    autoWake(orch, agent, 'TASK', { here: root, ringSelf: true, human: true, messageId: sent.id });
+  };
+  const orch = orchestratorOf(root);
+  if (!orch) return;
+
+  if (verdict) {
+    if (mark) wakeMod.dropVerify(from.box);
+    if (cardId) {
+      try {
+        kanbanMod.applyAgentReport(root, {
+          cardId,
+          verdict,
+          summary: String(text || '').split('\n').slice(1).join('\n').trim().slice(0, 2000),
+          resolveAgent,
+          deliverAndWake,
+          orchestrator: orch,
+        });
+      } catch (e) {
+        if (!(e instanceof kanbanMod.KanbanError)) throw e;
+      }
+    } else if (verdict === 'FAIL' && mark && mark.round < (mark.maxRounds || 3)) {
+      // Чат без карточки: вернуть maker-у TASK с логом
+      const maker = resolveKanbanAgent(root, mark.makerKey || mark.from);
+      if (maker && isSubagent(maker)) {
+        const body = [
+          'Проверка не прошла (verify: FAIL). Исправь и снова DONE.',
+          `round: ${(mark.round || 0) + 1}/${mark.maxRounds || 3}`,
+          mark.criteria && mark.criteria.length ? `verify:\n${mark.criteria.map((c) => `- ${c}`).join('\n')}` : '',
+          '',
+          String(text || '').slice(0, 4000),
+        ].filter(Boolean).join('\n');
+        wakeMod.setVerify(maker.box, { ...mark, round: (mark.round || 0) + 1, role: 'maker', from: orch.name });
+        deliverAndWake(orch, maker, body);
+      }
+    }
+    return;
+  }
+
+  if (mark && mark.role === 'checker') return;
+  wakeMod.dropVerify(from.box);
+  if (cardId) {
+    kanbanMod.noteMakerDone(root, {
+      cardId,
+      agentKey: from.kind === 'local' ? `${from.name}@${from.root}` : from.name,
+      text,
+      resolveAgent,
+      deliverAndWake,
+      orchestrator: orch,
+    });
+    return;
+  }
+  // Чат: один maker → сразу checker из метки / настройки
+  const criteria = (mark && mark.criteria) || [];
+  const checkerName = (mark && mark.checker) || settings.get(root)['kanban.defaultChecker'] || '';
+  const checker = checkerName ? resolveKanbanAgent(root, checkerName) : null;
+  if (!checker) return;
+  const body = [
+    'Проверь работу агента. Код не правь. DONE оркестратору, первая строка: verify: PASS | FAIL | NEEDS_ANSWER.',
+    criteria.length ? `verify:\n${criteria.map((c) => `- ${c}`).join('\n')}` : '',
+    `maxRounds: ${(mark && mark.maxRounds) || 3}`,
+    '',
+    'Отчёт maker:',
+    String(text || '').slice(0, 6000),
+  ].filter(Boolean).join('\n');
+  wakeMod.setVerify(checker.box, {
+    id: messageId,
+    from: orch.name,
+    criteria,
+    checker: checker.name,
+    maxRounds: (mark && mark.maxRounds) || 3,
+    round: (mark && mark.round) || 0,
+    makerKey: from.kind === 'local' ? `${from.name}@${from.root}` : from.name,
+    role: 'checker',
+  });
+  deliverAndWake(orch, checker, body);
+}
+
+/** Ключ канбана (name или name@root) → агент проекта или глобальный. */
+function resolveKanbanAgent(root, key) {
+  const raw = String(key || '');
+  const at = raw.indexOf('@');
+  const name = at >= 0 ? raw.slice(0, at) : raw;
+  const ctx = contextOf(root);
+  try {
+    const local = describe(ctx, name);
+    if (local && isSubagent(local)) return local;
+  } catch {
+    // нет локального
+  }
+  try {
+    const global = describe(contextOf(null), name);
+    if (global && isSubagent(global)) return global;
+  } catch {
+    // нет
+  }
+  return null;
 }
 
 /** Диалоги пары «проект ↔ субагент» и формат журнала - см. journal.js. id диалога из UI → проверенный или отказ. */
