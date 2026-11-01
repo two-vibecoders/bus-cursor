@@ -1,7 +1,7 @@
 /**
  * Снимок лимитов Cursor: ~/.cursor/bus-cursor/cache/rate-limits.json.
- * Формат: { auto?, api?, grok?, at } - окна { used_percentage, resets_at? }.
- * Auto/API ← GetCurrentPeriodUsage (autoPercentUsed / apiPercentUsed).
+ * Формат: { total?, auto?, api?, grok?, at } - окна { used_percentage, resets_at? }.
+ * Всего/Auto/API ← GetCurrentPeriodUsage (totalPercentUsed / autoPercentUsed / apiPercentUsed), сброс - billingCycleEnd.
  * Grok Bot ← GetSandUsageStatus (usagePercent, недельное окно).
  * Поле plan (includedSpend/limit) не пишем - в кабинете его нет, путало с «100%».
  */
@@ -18,7 +18,7 @@ const SNAPSHOT = path.join(CACHE_DIR, 'rate-limits.json');
 const USAGE_URL = 'https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage';
 const SAND_URL = 'https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus';
 const REFRESH_MS = 5 * 60 * 1000; // не долбим API чаще пяти минут
-const WINDOWS = ['auto', 'api', 'grok'];
+const WINDOWS = ['total', 'auto', 'api', 'grok'];
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 const readJson = (file) => {
@@ -94,7 +94,7 @@ function winOf(used, resets_at) {
     : { used_percentage };
 }
 
-/** Ответ GetCurrentPeriodUsage → Auto / API. */
+/** Ответ GetCurrentPeriodUsage → Всего / Auto / API. */
 function fromUsageResponse(body) {
   if (!body || typeof body !== 'object') return null;
   const plan = body.planUsage && typeof body.planUsage === 'object' ? body.planUsage : null;
@@ -102,6 +102,7 @@ function fromUsageResponse(body) {
   const endMs = Number(body.billingCycleEnd);
   const resets_at = Number.isFinite(endMs) && endMs > 0 ? Math.floor(endMs / 1000) : null;
   const out = {};
+  if (Number.isFinite(plan.totalPercentUsed)) out.total = winOf(plan.totalPercentUsed, resets_at);
   if (Number.isFinite(plan.autoPercentUsed)) out.auto = winOf(plan.autoPercentUsed, resets_at);
   if (Number.isFinite(plan.apiPercentUsed)) out.api = winOf(plan.apiPercentUsed, resets_at);
   return Object.keys(out).length ? out : null;
@@ -208,7 +209,7 @@ async function refresh(opts = {}) {
   }
 }
 
-/** → { auto?, api?, grok?, at } или null. */
+/** → { total?, auto?, api?, grok?, at } или null. */
 function readSnapshot() {
   const data = readJson(SNAPSHOT);
   if (!data || typeof data !== 'object') return null;

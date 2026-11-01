@@ -44,9 +44,9 @@ const { tr, N } = i18n;
 const langStore = new AsyncLocalStorage();
 i18n.provide(() => langStore.getStore());
 
-const DEFAULT_PORT = 4781; // Claude Bus держит 4780: свой порт, чтобы не драться и не «узнавать» чужой UI
+const DEFAULT_PORT = 4781;
 const PORT_TRIES = 20;
-const APP = 'bus-cursor-ui'; // /api/ping: чужой bus-ui (Claude Bus) - занятый порт, не «наш» сервер
+const APP = 'bus-cursor-ui'; // /api/ping: другой app - занятый порт, не «наш» сервер
 const POLL_MS = 1000;
 const SWEEP_MS = 60 * 1000; // сторож автоподъёма - см. sweepWakes
 const LIVE_LINES = 30; // сколько последних строк живого хода агента едет на страницу
@@ -610,7 +610,7 @@ function kanbanState(snapshot = collectAgents()) {
   const counts = kanban().badge(board);
   const agents = snapshot.agents
     .filter((a) => a.registered && a.alive && (a.kind === 'global' || (a.kind === 'local' && a.root === root)))
-    .map((a) => ({ key: a.key, name: a.name, kind: a.kind }));
+    .map((a) => ({ key: a.key, name: a.name, kind: a.kind, icon: a.icon || null }));
   return { ok: true, board, root, ...counts, agents, scanMin: settings.get(root)['kanban.scanMin'], hint: tr('Скан идёт, пока открыт UI. Закроешь - карточки ждут.') };
 }
 
@@ -628,7 +628,7 @@ function kanbanDeliverWake(snapshot, from, to, text) {
 
 function broadcastKanban(snapshot = collectAgents()) {
   const state = kanbanState(snapshot);
-  const sig = JSON.stringify(state.board);
+  const sig = JSON.stringify([state.board, state.agents]);
   if (sig !== kanbanSignature) {
     kanbanSignature = sig;
     broadcast('kanban', state);
@@ -2562,7 +2562,7 @@ async function start(args = []) {
     } catch (e) {
       if (e.code !== 'EADDRINUSE') throw e;
       const other = await ping(port);
-      // Только свой UI (тот же APP): переключить каталог или открыть. Claude Bus (bus-ui) и любой другой процесс - чужие, берём следующий порт
+      // Только свой UI (тот же APP): переключить каталог или открыть. любой другой процесс - чужой, берём следующий порт
       if (other && other.app === APP) {
         // Окно закрыли, а процесс ещё гаснет (простой /api/quit): освободим порт и поднимемся сами - иначе ярлык цепляется к старому коду
         if (appMode && open && Number(other.clients) === 0) {
@@ -2580,7 +2580,7 @@ async function start(args = []) {
           return;
         }
       }
-      continue; // порт занят чужим (в т.ч. Claude Bus) - свободный следующий
+      continue; // порт занят чужим - свободный следующий
     }
     const url = `http://127.0.0.1:${port}`;
     rememberServer(port);

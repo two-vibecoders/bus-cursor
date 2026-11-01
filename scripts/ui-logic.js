@@ -523,21 +523,21 @@
     return tr('{s}с', { s });
   }
 
-  /** Дата сброса окна: «25 октября»; в ближайшие сутки - ЧЧ:ММ. */
+  /** Дата сброса окна: «25 октября, 10:59»; в ближайшие сутки - ЧЧ:ММ. Время - локальное. */
   function resetClock(epochSec, now = Date.now()) {
     const d = new Date(epochSec * 1000);
     if (d.getTime() - now < 86400 * 1000) return clock(d.getTime());
-    return d.toLocaleDateString(locale(), { day: 'numeric', month: 'long' });
+    return `${d.toLocaleDateString(locale(), { day: 'numeric', month: 'long' })}, ${clock(d.getTime())}`;
   }
 
   /**
    * Снимок лимитов Cursor (rate-limits.js → /api/state.rateLimits) → { windows, stale, age } или null.
-   * windows: [{ key, label, pct, level, left, at, reset }] - Auto / API / Grok Bot.
+   * windows: [{ key, label, pct, level, left, at, reset }] - Всего / Auto / API / Grok Bot.
    */
   function rateLimits(snapshot, now = Date.now()) {
     if (!snapshot || typeof snapshot !== 'object') return null;
     const windows = [];
-    for (const [key, label] of [['auto', tr('Auto')], ['api', tr('API')], ['grok', tr('Grok Bot')]]) {
+    for (const [key, label] of [['total', tr('Всего')], ['auto', tr('Auto')], ['api', tr('API')], ['grok', tr('Grok Bot')]]) {
       const w = snapshot[key];
       if (!w || !Number.isFinite(w.used_percentage)) continue;
       const left = Number.isFinite(w.resets_at) ? w.resets_at - Math.floor(now / 1000) : null;

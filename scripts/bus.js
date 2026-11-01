@@ -364,7 +364,7 @@ function uninstallHook(root) {
 
 /**
  * Хук в settings.json Claude / Cursor editor не ставим: у Bus Cursor хуки только в ~/.cursor/hooks.json (cursor.ensureHooks).
- * Раньше сюда писали формат Claude (UserPromptSubmit) - это пересекалось с Claude Bus и портило ~/.cursor/settings.json.
+ * Раньше сюда писали формат Claude (UserPromptSubmit) - это портило ~/.cursor/settings.json.
  * → всегда false.
  */
 function ensureGlobalHook() {

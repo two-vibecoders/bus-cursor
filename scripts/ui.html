@@ -412,9 +412,19 @@
   .limits-btn[aria-expanded="true"] { color: var(--copper); background: var(--copper-soft); border-color: color-mix(in srgb, var(--copper) 40%, var(--line)); }
   .limits-btn .limits-sum { display: inline-flex; align-items: center; gap: 6px; }
   .limits-btn .pct { font: 600 13px/1 var(--label); }
+  .limits-btn .lbl { font: 600 10px/1 var(--label); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+  .limits-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .limits-pick-label { font: 11px/1.3 var(--label); color: var(--ink-soft); margin-right: 2px; }
+  .limits-chip {
+    height: 22px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--line);
+    background: none; color: var(--ink-soft); font: 600 11px/1 var(--label); cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .limits-chip:hover { color: var(--ink); border-color: var(--line-strong); }
+  .limits-chip[aria-pressed="true"] { color: var(--copper); border-color: color-mix(in srgb, var(--copper) 45%, var(--line)); background: var(--copper-soft); }
   .limits-menu {
     position: absolute; top: calc(100% + 6px); right: 0; z-index: 12;
-    width: min(300px, calc(100vw - 24px));
+    width: min(340px, calc(100vw - 24px));
     padding: 10px 12px 12px;
     background: var(--panel); border: 1px solid var(--line-strong); border-radius: 12px;
     box-shadow: var(--shadow-pop);
@@ -439,14 +449,17 @@
   .limits-age-btn.busy .icon { animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .limits-row {
-    display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; grid-template-rows: auto auto;
+    display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; grid-template-rows: auto auto;
     gap: 4px 10px; align-items: center;
   }
-  .limits-row .label { grid-row: 1; grid-column: 1; font: 600 11px/1 var(--label); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+  .limits-row .label { grid-row: 1; grid-column: 1; white-space: nowrap; font: 600 11px/1 var(--label); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
   .limits-row .meter { grid-row: 1; grid-column: 2; width: 100%; }
   .limits-row .pct { grid-row: 1; grid-column: 3; font: 600 13px/1 var(--label); font-variant-numeric: tabular-nums; color: var(--ink); min-width: 3.2em; text-align: right; }
   .limits-row .meta { grid-row: 2; grid-column: 1 / -1; font: 12px/1.3 var(--label); font-variant-numeric: tabular-nums; color: var(--ink-soft); }
   .limits-row.reset .pct { color: var(--ink-soft); font-weight: 400; }
+  .limits-row { margin: -4px -6px; padding: 4px 6px; border-radius: 8px; cursor: pointer; transition: background .15s; }
+  .limits-row:hover { background: var(--glass-2, var(--copper-soft)); }
+  .limits-row.main .label { color: var(--copper); }
   .meter { position: relative; width: 56px; height: 4px; border-radius: 999px; background: var(--line); overflow: hidden; }
   .meter i { position: absolute; inset: 0 auto 0 0; width: var(--p); border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--lvl) 65%, transparent), var(--lvl)); box-shadow: 0 0 8px color-mix(in srgb, var(--lvl) 60%, transparent); transition: width .6s var(--ease); }
   /* На вкладке - кольцо: заполненная дуга цветом уровня, рядом процент */
@@ -1631,6 +1644,9 @@
     background: linear-gradient(135deg, hsl(var(--h) 65% 58%), hsl(calc(var(--h) + 35) 60% 44%));
     transition: transform .25s var(--ease);
   }
+  .kb-av.has-icon { background: var(--panel); border-radius: 7px; overflow: hidden; }
+  .kb-av.has-icon img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 5px; }
+  .kb-tag .kb-av.has-icon, .kb-tag .kb-av.has-icon img { border-radius: 4px; }
   .kb-av:first-child { margin-left: 0; }
   .kb-card:hover .kb-av { transform: translateY(-1px); }
 
@@ -2212,9 +2228,7 @@
     height: 24px;
   }
   .about-link-brand .icon-cursor { width: 20px; height: 24px; }
-  .about-link-brand .icon-claude { color: #d97757; width: 24px; height: 24px; }
   .about-link:hover .about-link-brand { color: inherit; }
-  .about-link:hover .about-link-brand .icon-claude { color: #d97757; }
   .about-link-main {
     display: flex;
     flex-direction: column;
@@ -3546,7 +3560,6 @@
   <symbol id="i-telegram" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M21.8 4.3 2.9 11.5c-1.3.5-1.3 1.2-.2 1.5l4.8 1.5 1.9 5.7c.2.7.4.9 1 .9.6 0 .8-.3 1.1-.6l2.8-2.7 5.6 4.1c1 .5 1.7.3 2-.9L23.2 5.8c.3-1.3-.4-1.9-1.4-1.5z"/></symbol>
   <symbol id="i-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
   <symbol id="i-cursor-ide" viewBox="0 0 49 56"><path fill="currentColor" stroke="none" d="M48.0226 13.2547L25.6601 0.311786C24.942 -0.103929 24.0559 -0.103929 23.3378 0.311786L0.976347 13.2547C0.372691 13.6041 0 14.2503 0 14.9502V41.0498C0 41.7496 0.372691 42.3958 0.976347 42.7453L23.3389 55.6882C24.057 56.1039 24.943 56.1039 25.6611 55.6882L48.0237 42.7453C48.6273 42.3958 49 41.7496 49 41.0498V14.9502C49 14.2503 48.6273 13.6041 48.0237 13.2547H48.0226ZM46.6179 15.9964L25.0302 53.4802C24.8842 53.7328 24.4989 53.6296 24.4989 53.337V28.793C24.4989 28.3026 24.2375 27.849 23.8134 27.6027L2.61094 15.3312C2.35898 15.1849 2.46186 14.7987 2.75372 14.7987H45.9292C46.5423 14.7987 46.9255 15.4649 46.619 15.9974L46.6179 15.9964Z"/></symbol>
-  <symbol id="i-claude" viewBox="0 0 100 100"><path fill="currentColor" stroke="none" d="m19.6 66.5 19.7-11 .3-1-.3-.5h-1l-3.3-.2-11.2-.3L14 53l-9.5-.5-2.4-.5L0 49l.2-1.5 2-1.3 2.9.2 6.3.5 9.5.6 6.9.4L38 49.1h1.6l.2-.7-.5-.4-.4-.4L29 41l-10.6-7-5.6-4.1-3-2-1.5-2-.6-4.2 2.7-3 3.7.3.9.2 3.7 2.9 8 6.1L37 36l1.5 1.2.6-.4.1-.3-.7-1.1L33 25l-6-10.4-2.7-4.3-.7-2.6c-.3-1-.4-2-.4-3l3-4.2L28 0l4.2.6L33.8 2l2.6 6 4.1 9.3L47 29.9l2 3.8 1 3.4.3 1h.7v-.5l.5-7.2 1-8.7 1-11.2.3-3.2 1.6-3.8 3-2L61 2.6l2 2.9-.3 1.8-1.1 7.7L59 27.1l-1.5 8.2h.9l1-1.1 4.1-5.4 6.9-8.6 3-3.5L77 13l2.3-1.8h4.3l3.1 4.7-1.4 4.9-4.4 5.6-3.7 4.7-5.3 7.1-3.2 5.7.3.4h.7l12-2.6 6.4-1.1 7.6-1.3 3.5 1.6.4 1.6-1.4 3.4-8.2 2-9.6 2-14.3 3.3-.2.1.2.3 6.4.6 2.8.2h6.8l12.6 1 3.3 2 1.9 2.7-.3 2-5.1 2.6-6.8-1.6-16-3.8-5.4-1.3h-.8v.4l4.6 4.5 8.3 7.5L89 80.1l.5 2.4-1.3 2-1.4-.2-9.2-7-3.6-3-8-6.8h-.5v.7l1.8 2.7 9.8 14.7.5 4.5-.7 1.4-2.6 1-2.7-.6-5.8-8-6-9-4.7-8.2-.5.4-2.9 30.2-1.3 1.5-3 1.2-2.5-2-1.4-3 1.4-6.2 1.6-8 1.3-6.4 1.2-7.9.7-2.6v-.2H49L43 72l-9 12.3-7.2 7.6-1.7.7-3-1.5.3-2.8L24 86l10-12.8 6-7.9 4-4.6-.1-.5h-.3L17.2 77.4l-4.7.6-2-2 .2-3 1-1 8-5.5Z"/></symbol>
 </svg>
 
 <div class="bg-video" id="bgVideo" aria-hidden="true"></div>
@@ -5847,9 +5860,18 @@ let rateSnapshot = null; // последний снимок лимитов: /api
 let limitsOpen = false;
 let limitsRefreshing = false;
 
-/** В шапке - окно с наибольшим расходом (Auto / API / Grok Bot). */
+const LIMITS_MAIN_KEY = 'bus-cursor.limitsMain';
+const limitsMain = () => localStorage.getItem(LIMITS_MAIN_KEY) || 'max';
+
+/** В шапке - выбранное окно; «max» или выбранного нет в снимке - окно с наибольшим расходом. */
 function limitsSummary(view) {
-  return view.windows.reduce((a, b) => ((b.reset ? -1 : b.pct) > (a.reset ? -1 : a.pct) ? b : a));
+  const picked = view.windows.find((w) => w.key === limitsMain());
+  return picked || view.windows.reduce((a, b) => ((b.reset ? -1 : b.pct) > (a.reset ? -1 : a.pct) ? b : a));
+}
+
+function setLimitsMain(key) {
+  localStorage.setItem(LIMITS_MAIN_KEY, key);
+  renderLimits();
 }
 
 function limitsMeta(w) {
@@ -5901,15 +5923,23 @@ function renderLimits(snapshot = rateSnapshot) {
     return;
   }
   const sum = limitsSummary(view);
+  const main = limitsMain();
   const age = L.duration(view.age / 1000);
-  const tip = tr('Лимиты Cursor (Auto, API и Grok Bot). Снимок {age} назад', { age }) + (view.stale ? tr(' - устарел: обновится при следующем опросе') : '');
+  const tip = tr('Лимиты Cursor: в шапке - {label}. Снимок {age} назад', { label: sum.label, age }) + (view.stale ? tr(' - устарел: обновится при следующем опросе') : '');
   btn.classList.toggle('stale', view.stale);
   btn.classList.toggle('warn', !sum.reset && sum.level === 'high');
   btn.title = tip;
   $('limitsSum').replaceChildren(
     meter(sum.reset ? 0 : sum.pct, sum.reset ? 'low' : sum.level, true),
+    el('span', { className: 'lbl' }, sum.label),
     el('span', { className: 'pct' }, sum.reset ? tr('сброшен') : `${sum.pct}%`),
   );
+  const pick = (key, label, tip) => {
+    const b = el('button', { type: 'button', className: 'limits-chip', title: tip }, label);
+    b.setAttribute('aria-pressed', String(main === key || (key === 'max' && !view.windows.some((w) => w.key === main))));
+    b.addEventListener('click', () => setLimitsMain(key));
+    return b;
+  };
   const ageBtn = el('button', {
     type: 'button',
     className: `limits-age limits-age-btn${view.stale ? ' stale' : ''}${limitsRefreshing ? ' busy' : ''}`,
@@ -5928,12 +5958,21 @@ function renderLimits(snapshot = rateSnapshot) {
       el('b', {}, tr('Лимиты Cursor')),
       ageBtn,
     ),
-    ...view.windows.map((w) => el('div', { className: `limits-row${w.reset ? ' reset' : ''}` },
-      el('span', { className: 'label' }, w.label),
-      meter(w.reset ? 0 : w.pct, w.reset ? 'low' : w.level),
-      el('span', { className: 'pct' }, w.reset ? tr('сброшен') : `${w.pct}%`),
-      el('span', { className: 'meta' }, limitsMeta(w) || '\u00a0'),
-    )),
+    el('div', { className: 'limits-pick', role: 'group', ariaLabel: tr('Главный лимит в шапке') },
+      el('span', { className: 'limits-pick-label' }, tr('В шапке')),
+      pick('max', tr('Макс.'), tr('Окно с наибольшим расходом')),
+      ...view.windows.map((w) => pick(w.key, w.label, tr('Показывать в шапке: {label}', { label: w.label }))),
+    ),
+    ...view.windows.map((w) => {
+      const row = el('div', { className: `limits-row${w.reset ? ' reset' : ''}${w.key === sum.key ? ' main' : ''}`, title: tr('Показывать в шапке: {label}', { label: w.label }) },
+        el('span', { className: 'label' }, w.label),
+        meter(w.reset ? 0 : w.pct, w.reset ? 'low' : w.level),
+        el('span', { className: 'pct' }, w.reset ? tr('сброшен') : `${w.pct}%`),
+        el('span', { className: 'meta' }, limitsMeta(w) || '\u00a0'),
+      );
+      row.addEventListener('click', () => setLimitsMain(w.key));
+      return row;
+    }),
   );
 }
 setInterval(() => renderLimits(), 30 * 1000);
@@ -7936,7 +7975,8 @@ const KB_ROLE_NOTE = {
 
 const kbBoard = () => state.kanban && state.kanban.board;
 const kbAgents = () => (state.kanban && state.kanban.agents) || [];
-const kbAgentName = (key) => (kbAgents().find((a) => a.key === key) || { name: key }).name;
+const kbAgent = (key) => kbAgents().find((a) => a.key === key) || { name: key };
+const kbAgentName = (key) => kbAgent(key).name;
 const kbCard = (id) => (kbBoard() ? kbBoard().cards.find((c) => c.id === id) : null);
 const kbColumn = (id) => (kbBoard() ? kbBoard().columns.find((c) => c.id === id) : null);
 
@@ -7947,7 +7987,11 @@ function kbHue(text) {
 }
 
 function kbAvatar(key) {
-  const name = kbAgentName(key);
+  const { name, icon: face } = kbAgent(key);
+  if (face) {
+    return el('span', { className: 'kb-av has-icon', title: name },
+      el('img', { src: `/avatars/${face}.png`, alt: '', draggable: false }));
+  }
   const node = el('span', { className: 'kb-av', title: name }, name.slice(0, 1).toUpperCase());
   node.style.setProperty('--h', String(kbHue(name)));
   return node;

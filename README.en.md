@@ -35,7 +35,7 @@ Current version: see [`release.json`](release.json) and [GitHub Releases](https:
 - **Dialogs** - tabs, compress to summary, closed history
 - **Kanban** - a separate workspace: columns with agents, drag-and-drop cards, verify loop with a checker
 - **Schedule** - cron jobs (scheduler daemon)
-- **Cursor limits** - Auto / API / Grok Bot in the header (same as Cursor account Usage)
+- **Cursor limits** - Total / Auto / API / Grok Bot in the header; pick the main one in the menu
 - **UI prefs** - light / dark theme, Russian / English, video background
 - **About** - version, update check, repository link
 - **Updates** - header button when a newer GitHub release is available (`release.json` required)
