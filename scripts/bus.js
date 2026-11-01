@@ -1072,7 +1072,8 @@ function deliver(from, to, type, text, attachments = [], { ui = false, btw = fal
       maxRounds: verified.maxRounds,
       round: 0,
       cardId: verified.cardId || '',
-      role: /(?:^|\n)role:\s*checker\b/i.test(text) ? 'checker' : 'maker',
+      role: /(?:^|\n)role:\s*checker\b/i.test(text) ? 'checker'
+        : /(?:^|\n)role:\s*dispatcher\b/i.test(text) ? 'dispatcher' : 'maker',
     });
   }
   if (type === 'DONE' && isSubagent(from)) {
@@ -1089,8 +1090,33 @@ function deliver(from, to, type, text, attachments = [], { ui = false, btw = fal
   return { id, btw: injected };
 }
 
+/** Хвост wake-live.jsonl агента → activity для канбан-карточки. */
+function readWakeActivity(box) {
+  try {
+    const text = fs.readFileSync(path.join(box, 'wake-live.jsonl'), 'utf8');
+    const out = [];
+    for (const line of text.split('\n').filter(Boolean).slice(-80)) {
+      try {
+        const e = JSON.parse(line);
+        if (e && typeof e.text === 'string' && e.text.trim()) {
+          out.push({
+            at: Number(e.at) || Date.now(),
+            kind: e.kind === 'tool' ? 'tool' : e.kind === 'think' ? 'think' : 'text',
+            text: e.text,
+          });
+        }
+      } catch {
+        // битая строка
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 /**
- * DONE от субагента: maker → checker; checker с verify: VERDICT → канбан и/или retry maker.
+ * DONE от субагента: dispatcher → route; maker → checker; checker с verify: VERDICT → канбан.
  * Без метки verify и без вердикта - обычный DONE.
  */
 function handleVerifyDone(from, to, text, messageId) {
@@ -1148,13 +1174,21 @@ function handleVerifyDone(from, to, text, messageId) {
   if (mark && mark.role === 'checker') return;
   wakeMod.dropVerify(from.box);
   if (cardId) {
+    const agentKey = from.kind === 'local' ? `${from.name}@${from.root}` : from.name;
+    const activity = readWakeActivity(from.box);
+    const isDispatcher = (mark && mark.role === 'dispatcher') || kanbanMod.parseRoute(text).length > 0;
+    if (isDispatcher) {
+      kanbanMod.noteDispatcherDone(root, { cardId, agentKey, text, activity });
+      return;
+    }
     kanbanMod.noteMakerDone(root, {
       cardId,
-      agentKey: from.kind === 'local' ? `${from.name}@${from.root}` : from.name,
+      agentKey,
       text,
       resolveAgent,
       deliverAndWake,
       orchestrator: orch,
+      activity,
     });
     return;
   }

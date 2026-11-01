@@ -1074,6 +1074,7 @@
     open: N('открыта'),
     running: N('в работе'),
     partial: N('частично'),
+    watching: N('раздана'),
     failed: N('fail'),
     needs_rework: N('доработка'),
     needs_answer: N('нужен ответ'),

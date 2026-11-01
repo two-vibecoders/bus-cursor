@@ -454,7 +454,10 @@ function liveState() {
     for (const line of text.split('\n').filter(Boolean).slice(-LIVE_LINES)) {
       try {
         const entry = JSON.parse(line);
-        if (entry && typeof entry.text === 'string') lines.push({ at: Number(entry.at) || 0, kind: entry.kind === 'tool' ? 'tool' : 'text', text: entry.text });
+        if (entry && typeof entry.text === 'string') {
+          const kind = entry.kind === 'tool' ? 'tool' : entry.kind === 'think' ? 'think' : 'text';
+          lines.push({ at: Number(entry.at) || 0, kind, text: entry.text });
+        }
       } catch {
         // строку дописывают прямо сейчас или она битая
       }
@@ -610,7 +613,19 @@ function kanbanState(snapshot = collectAgents()) {
   const counts = kanban().badge(board);
   const agents = snapshot.agents
     .filter((a) => a.registered && a.alive && (a.kind === 'global' || (a.kind === 'local' && a.root === root)))
-    .map((a) => ({ key: a.key, name: a.name, kind: a.kind, icon: a.icon || null }));
+    .map((a) => {
+      let cardId = '';
+      const box = runningBoxes.get(a.key);
+      try {
+        if (box && a.wake && a.wake.state === 'running') {
+          const m = wake.verifyMark(box);
+          if (m && m.cardId) cardId = m.cardId;
+        }
+      } catch {
+        cardId = '';
+      }
+      return { key: a.key, name: a.name, kind: a.kind, icon: a.icon || null, cardId: cardId || null, busy: Boolean(a.wake && a.wake.state === 'running') };
+    });
   return { ok: true, board, root, ...counts, agents, scanMin: settings.get(root)['kanban.scanMin'], hint: tr('Скан идёт, пока открыт UI. Закроешь - карточки ждут.') };
 }
 
@@ -678,8 +693,11 @@ function armKanbanScan() {
       if (!orch) return;
       const hasWork = board.cards.some((c) => {
         const col = board.columns.find((col) => col.id === c.columnId);
-        return col && !col.role && (c.status === 'open' || c.status === 'failed' || c.status === 'needs_rework')
-          && ((c.assigneeKeys && c.assigneeKeys.length) || (col.agentKeys && col.agentKeys.length));
+        if (!col || col.role === 'done' || col.role === 'check') return false;
+        if (!(c.status === 'open' || c.status === 'failed' || c.status === 'needs_rework')) return false;
+        if (c.childIds && c.childIds.length && c.status === 'watching') return false;
+        // пустой столбец тоже «работа»: скан припаркует в dispatch / к агенту
+        return true;
       });
       if (!hasWork) {
         kanban().update(root, (b) => { b.scannedAt = Date.now(); return b; });

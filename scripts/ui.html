@@ -1677,10 +1677,22 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--kb-c) 14%, transparent), 0 14px 30px -18px color-mix(in srgb, var(--kb-c) 60%, transparent);
     animation: kb-pop .35s var(--ease);
   }
-  .kb-composer textarea {
-    width: 100%; min-height: 38px; max-height: 160px; padding: 2px 4px; resize: none;
-    border: 0; background: none; outline: none; font: 500 13px/1.4 var(--body);
+  .kb-composer-shell { display: flex; align-items: flex-end; gap: 4px; min-width: 0; }
+  .kb-composer-tools { display: flex; flex-direction: column; align-items: center; gap: 2px; padding-bottom: 2px; flex: none; }
+  .kb-composer .voice-hint {
+    width: 28px; height: 28px; margin: 0; padding: 0; border: 0; border-radius: 50%;
+    display: grid; place-items: center; background: none; color: var(--ink-soft); cursor: pointer;
   }
+  .kb-composer .voice-hint:hover { color: var(--ink); background: var(--tap); }
+  .kb-composer .voice-hint .icon { width: 16px; height: 16px; opacity: 1; }
+  .kb-composer .voice-rec { margin: 0; }
+  .kb-composer .voice-rec:not([hidden]) { margin: 0; }
+  .kb-composer textarea {
+    flex: 1; min-width: 0; width: 100%; min-height: 56px; max-height: 220px; padding: 6px 4px; resize: none;
+    border: 0; background: none; outline: none; font: 500 13px/1.45 var(--body);
+    field-sizing: fixed;
+  }
+  .kb-composer textarea.listening { color: var(--copper); }
   .kb-composer-row { display: flex; align-items: center; gap: 4px; }
   .kb-hint { margin-right: auto; font-size: 10.5px; color: var(--ink-soft); padding-left: 4px; }
 
@@ -1766,6 +1778,31 @@
     max-height: 150px; overflow: auto; padding: 10px 12px; border-radius: 12px;
     background: var(--field); color: var(--ink-soft); font: 12px/1.5 var(--body); white-space: pre-wrap; overflow-wrap: anywhere;
   }
+  .kb-activity { display: grid; gap: 8px; }
+  .kb-act {
+    border: 1px solid var(--line); border-radius: 12px; background: var(--field); overflow: hidden;
+  }
+  .kb-act-head {
+    display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0;
+    background: none; color: var(--ink); font: 600 12px/1.3 var(--body); cursor: pointer; text-align: left;
+  }
+  .kb-act-head:hover { background: var(--tap); }
+  .kb-act-head .kb-spacer { flex: 1; }
+  .kb-act-badge {
+    font: 600 10px/1 var(--label); letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink-soft); padding: 3px 6px; border-radius: 999px; border: 1px solid var(--line);
+  }
+  .kb-act-badge.live { color: var(--done); border-color: color-mix(in srgb, var(--done) 40%, var(--line)); }
+  .kb-act-body { max-height: 180px; overflow: auto; padding: 0 10px 10px; display: grid; gap: 4px; }
+  .kb-act-body[hidden] { display: none !important; }
+  .kb-act-line { font: 12px/1.45 var(--body); color: var(--ink); overflow-wrap: anywhere; }
+  .kb-act-line.tool { font-family: var(--mono); color: var(--ink-soft); }
+  .kb-act-line.think { color: var(--question); font-style: italic; }
+  .kb-act-report {
+    margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line);
+    white-space: pre-wrap; color: var(--ink-soft); font: 12px/1.45 var(--body);
+  }
+  .kb-act-empty { font: 12px/1.4 var(--body); color: var(--ink-soft); padding: 4px 0; }
   .kb-err { margin: 0; color: var(--danger); font-size: 12.5px; }
   .kb-shake { animation: kb-shake .4s var(--ease); }
 
@@ -2188,26 +2225,25 @@
   }
   .about-check .icon { width: 16px; height: 16px; }
   .about-links {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    display: flex;
+    justify-content: center;
     margin: 0 0 16px;
   }
   .about-link {
-    display: flex;
-    flex-direction: column;
+    display: inline-flex;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    aspect-ratio: 1;
+    gap: 10px;
+    width: min(220px, 100%);
     min-height: 0;
-    padding: 14px 10px;
+    padding: 10px 14px;
     border-radius: var(--r);
     border: 1px solid var(--line);
     background: var(--glass-1);
     color: var(--ink);
     text-decoration: none;
-    text-align: center;
+    text-align: left;
     transition: background-color .2s, border-color .2s, color .2s, transform .2s var(--ease);
   }
   .about-link:hover {
@@ -2232,10 +2268,9 @@
   .about-link-main {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 3px;
+    align-items: flex-start;
+    gap: 2px;
     min-width: 0;
-    width: 100%;
   }
   .about-link-main > b {
     display: block;
@@ -3716,6 +3751,7 @@
         <span>Роль</span>
         <div class="kb-seg" id="kbColRole">
           <button type="button" data-role="" style="--c: var(--copper)"><i></i>Работа</button>
+          <button type="button" data-role="dispatch" style="--c: var(--amber)"><i></i>Распр.</button>
           <button type="button" data-role="check" style="--c: var(--question)"><i></i>Проверка</button>
           <button type="button" data-role="done" style="--c: var(--done)"><i></i>Готово</button>
         </div>
@@ -3765,6 +3801,10 @@
       <div class="kb-field">
         <span>Исполнители<small>пусто - агенты столбца</small></span>
         <div class="kb-people" id="kbCardAgents"></div>
+      </div>
+      <div class="kb-field" id="kbCardActivityWrap" hidden>
+        <span>Ход агентов</span>
+        <div class="kb-activity" id="kbCardActivity"></div>
       </div>
       <div class="kb-field" id="kbCardReportWrap" hidden>
         <span>Последний отчёт</span>
@@ -5386,6 +5426,10 @@ function applyLive(live) {
   document.querySelectorAll('.live[data-key]').forEach((node) => fillLive(node, node.dataset.key));
   document.querySelectorAll('.live-last[data-key]').forEach((node) => node.replaceWith(liveLastNode(node.dataset.key)));
   renderLiveBar();
+  if (kbModal && kbModal.type === 'card' && kbModal.id && !$('kbCardModal').hidden) {
+    const card = kbCard(kbModal.id);
+    if (card) kbRenderCardActivity(card);
+  }
 }
 
 const tickClocks = () => document.querySelectorAll('.run-mark .clock').forEach((c) => (c.textContent = L.elapsed(Date.now() - Number(c.dataset.since))));
@@ -7525,6 +7569,7 @@ $('text').addEventListener('blur', closeMention);
 
 // Распознаёт браузер (Web Speech API, Chrome и Edge), сервер шины звука не видит. Текст ложится в поле, а не уходит агенту.
 // Старт: удержание пробела ≥HOLD_MS или клик по mic. Стоп: повторный пробел, клик по плашке/mic, Esc.
+let kanbanOpen = false; // раньше голосовых слотов: open() композера чата смотрит сюда при syncVoiceHints()
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
 const HOLD_MS = 400; // короче - это пробел или клик кнопки, дольше - старт диктовки
 const voice = { armed: false, timer: null, tap: 'none', target: null, rec: null, field: null, before: '', after: '', final: '', error: '' };
@@ -7533,14 +7578,15 @@ const voice = { armed: false, timer: null, tap: 'none', target: null, rec: null,
 const VOICE_SLOTS = [
   { field: 'schedPrompt', hint: 'schedVoiceHint', rec: 'schedVoiceRec', open: () => !$('schedule').hidden && !$('scheduleForm').hidden },
   { field: 'agentAsk', hint: 'agentVoiceHint', rec: 'agentVoiceRec', open: () => !$('agentPanel').hidden },
-  { field: 'text', hint: 'composerVoiceHint', rec: 'composerVoiceRec', open: () => true },
+  { field: 'text', hint: 'composerVoiceHint', rec: 'composerVoiceRec', open: () => !kanbanOpen },
 ];
 let settingsVoiceSlots = []; // промпты в ⚙ - пересобираются с формой
+let kbVoiceSlots = []; // поле «Что нужно сделать» в канбане - пересобирается с композером
 
 const voiceField = (s) => (typeof s.field === 'string' ? $(s.field) : s.field);
 const voiceHint = (s) => (typeof s.hint === 'string' ? $(s.hint) : s.hint);
 const voiceRec = (s) => (typeof s.rec === 'string' ? $(s.rec) : s.rec);
-const allVoiceSlots = () => [...settingsVoiceSlots, ...VOICE_SLOTS];
+const allVoiceSlots = () => [...kbVoiceSlots, ...settingsVoiceSlots, ...VOICE_SLOTS];
 
 function voiceSlotFor(el) {
   if (!el) return null;
@@ -7654,6 +7700,10 @@ function startVoice() {
     const note = L.voiceNote(voice.error || (voice.final.trim() ? '' : 'no-speech'));
     // Успех - текст уже в поле; ошибки и «ничего не расслышал» - коротко текстом
     if (note && voice.error !== 'aborted') voiceSay(note, true);
+    if (kbRenderPending && kanbanOpen && !kbDrag) {
+      kbRenderPending = false;
+      renderKanbanBoard();
+    }
   };
   try {
     rec.start();
@@ -7957,7 +8007,6 @@ let scheduleNote = null; // daemonNote последнего действия - �
 
 // ---------- канбан ----------
 
-let kanbanOpen = false;
 let kbModal = null; // { type: 'card'|'col', id } - открытая форма
 let kbDrag = null; // перетаскивание карточки или столбца
 let kbComposer = null; // { colId, text } - быстрая задача внизу столбца
@@ -7968,7 +8017,8 @@ const KB_EASE = 'cubic-bezier(.2, .7, .2, 1)';
 const KB_REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const KB_COLORS = ['', '#2aabee', '#8b5cf6', '#ec4899', '#ef4444', '#f59e0b', '#16a34a', '#14b8a6', '#64748b'];
 const KB_ROLE_NOTE = {
-  '': N('Скан отправляет задачи столбца его агентам.'),
+  '': N('Скан отправляет задачи столбца его агентам. Без агентов - карточка уйдёт в «Распр.» или в столбец исполнителя.'),
+  dispatch: N('Распределитель: скан шлёт сюда задачу, агент в DONE отдаёт route: - шина создаёт дочерние карточки в столбцах исполнителей.'),
   check: N('Сюда задачи приходят на проверку - агенты столбца становятся проверяющими.'),
   done: N('Сюда задача попадает после verify: PASS.'),
 };
@@ -7997,11 +8047,14 @@ function kbAvatar(key) {
   return node;
 }
 
-const kbColColor = (col) => col.color || (col.role === 'check' ? 'var(--question)' : col.role === 'done' ? 'var(--done)' : 'var(--copper)');
+const kbColColor = (col) => col.color
+  || (col.role === 'check' ? 'var(--question)'
+    : col.role === 'done' ? 'var(--done)'
+      : col.role === 'dispatch' ? 'var(--amber)' : 'var(--copper)');
 
 function kbTone(status) {
   if (status === 'done') return 'done';
-  if (status === 'running' || status === 'partial') return 'run';
+  if (status === 'running' || status === 'partial' || status === 'watching') return 'run';
   if (status === 'needs_answer') return 'ask';
   if (status === 'failed' || status === 'needs_rework') return 'bad';
   return 'open';
@@ -8047,7 +8100,8 @@ function applyKanban(data) {
   state.kanban = data;
   renderKanbanBadge();
   if (!kanbanOpen) return;
-  if (kbDrag) {
+  // Не ломаем композер во время диктовки и перетаскивания - дорисуем после
+  if (kbDrag || (voice.rec && kbVoiceSlots.some((s) => voiceField(s) === voice.field))) {
     kbRenderPending = true;
     return;
   }
@@ -8070,11 +8124,14 @@ function openKanban() {
 function closeKanban() {
   if (kbDrag) kbDragEnd('cancel');
   kbCloseModal(true);
+  if (voice.field && kbVoiceSlots.some((s) => voiceField(s) === voice.field)) stopVoice();
+  kbVoiceSlots = [];
   kanbanOpen = false;
   kbComposer = null;
   document.body.classList.remove('kanban-open');
   $('kanban').hidden = true;
   $('kanbanBtn').setAttribute('aria-expanded', 'false');
+  syncVoiceHints();
   $('kanbanBtn').focus();
 }
 
@@ -8175,6 +8232,7 @@ function kbColumnNode(board, col) {
   head.addEventListener('dblclick', (e) => { if (!e.target.closest('button')) kbOpenColumn(col); });
 
   const tags = [];
+  if (col.role === 'dispatch') tags.push(el('span', { className: 'kb-tag role' }, icon('bolt'), tr('распределение')));
   if (col.role === 'check') tags.push(el('span', { className: 'kb-tag role' }, icon('eye'), tr('проверка')));
   if (col.role === 'done') tags.push(el('span', { className: 'kb-tag role' }, icon('check'), tr('готово')));
   const keys = col.agentKeys || [];
@@ -8222,6 +8280,14 @@ function kbCardNode(card) {
   const foot = [el('span', { className: 'kb-status' }, el('i'), document.createTextNode(tr(L.KANBAN_STATUS[card.status] || card.status)))];
   if (card.round) foot.push(el('span', { className: 'kb-chip', title: tr('Круг проверки') }, icon('restart'), `${card.round}/${card.maxRounds}`));
   if (criteria) foot.push(el('span', { className: 'kb-chip', title: tr('Критериев verify: {n}', { n: criteria }) }, icon('check'), String(criteria)));
+  if (card.childIds && card.childIds.length) {
+    const done = card.childIds.filter((id) => {
+      const c = kbCard(id);
+      return c && c.status === 'done';
+    }).length;
+    foot.push(el('span', { className: 'kb-chip', title: tr('Дочерние задачи') }, icon('board'), `${done}/${card.childIds.length}`));
+  }
+  if (card.parentId) foot.push(el('span', { className: 'kb-chip', title: tr('Часть общей задачи') }, tr('часть')));
   if (card.assigneeKeys && card.assigneeKeys.length) foot.push(el('span', { className: 'kb-avatars' }, ...card.assigneeKeys.slice(0, 3).map(kbAvatar)));
   node.append(el('div', { className: 'kb-card-title' }, card.title));
   if (desc) node.append(el('div', { className: 'kb-card-desc' }, desc));
@@ -8272,20 +8338,40 @@ function kbStartComposer(colId) {
 
 function kbCloseComposer() {
   if (!kbComposer) return;
+  if (voice.field && kbVoiceSlots.some((s) => voiceField(s) === voice.field)) stopVoice();
+  kbVoiceSlots = [];
   kbComposer = null;
   renderKanbanBoard();
+  syncVoiceHints();
+}
+
+function kbFitComposer(ta) {
+  fitArea(ta, 56, () => Math.min(window.innerHeight * 0.35, 220));
+}
+
+/** Первая непустая строка - название (до 200), остальное - тело карточки. */
+function kbSplitComposerText(text) {
+  const raw = String(text || '').replace(/\r\n/g, '\n').trim();
+  if (!raw) return { title: '', body: '' };
+  const nl = raw.indexOf('\n');
+  if (nl < 0) return { title: raw.slice(0, 200), body: '' };
+  const title = raw.slice(0, nl).trim().slice(0, 200) || raw.slice(0, 200);
+  const body = raw.slice(nl + 1).trim();
+  return { title, body };
 }
 
 function kbComposerNode(col) {
-  const ta = el('textarea', { rows: 2, maxLength: 200, placeholder: tr('Что нужно сделать? Enter - добавить') });
+  if (voice.field && kbVoiceSlots.some((s) => voiceField(s) === voice.field)) stopVoice();
+  kbVoiceSlots = [];
+  const ta = el('textarea', {
+    rows: 2,
+    placeholder: tr('Что нужно сделать? Enter - добавить, Shift+Enter - новая строка'),
+    ariaLabel: tr('Что нужно сделать?'),
+  });
   ta.value = kbComposer.text;
-  const grow = () => {
-    ta.style.height = 'auto';
-    ta.style.height = `${Math.min(160, ta.scrollHeight)}px`;
-  };
   ta.addEventListener('input', () => {
     kbComposer.text = ta.value;
-    grow();
+    kbFitComposer(ta);
   });
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -8301,35 +8387,67 @@ function kbComposerNode(col) {
     const active = document.activeElement;
     if (kbComposer && !kbComposer.text.trim() && !(active && active.closest('.kb-composer'))) kbCloseComposer();
   }, 150));
+  const tip = tr('Диктовка: клик или удержание пробела');
+  const voiceBtn = el('button', { type: 'button', className: 'voice-hint', hidden: true, title: tip, ariaLabel: tr('Голосовой ввод') }, icon('mic'));
+  const recIcon = el('span', { className: 'voice-rec-icon' }, icon('mic'));
+  recIcon.setAttribute('aria-hidden', 'true');
+  const voiceRecBtn = el('button', {
+    type: 'button',
+    className: 'voice-rec',
+    hidden: true,
+    title: tr('Остановить запись'),
+    ariaLabel: tr('Остановить голосовой ввод'),
+  }, recIcon, el('span', { className: 'voice-rec-label' }, tr('Голосовой ввод')));
+  voiceBtn.addEventListener('click', toggleVoiceClick);
+  voiceRecBtn.addEventListener('click', toggleVoiceClick);
+  kbVoiceSlots.push({
+    field: ta,
+    hint: voiceBtn,
+    rec: voiceRecBtn,
+    open: () => kanbanOpen && Boolean(kbComposer),
+  });
   const more = el('button', { type: 'button', className: 'kb-btn sm', title: tr('Описание, verify и исполнители') }, tr('Подробнее'));
   more.addEventListener('click', () => {
-    const title = ta.value.trim();
+    const { title, body } = kbSplitComposerText(ta.value);
+    if (voice.field && kbVoiceSlots.some((s) => voiceField(s) === voice.field)) stopVoice();
+    kbVoiceSlots = [];
     kbComposer = null;
     renderKanbanBoard();
-    kbOpenCard(null, { columnId: col.id, title });
+    syncVoiceHints();
+    kbOpenCard(null, { columnId: col.id, title, body });
   });
   const save = el('button', { type: 'button', className: 'kb-btn primary sm' }, tr('Добавить'));
   save.addEventListener('click', () => kbComposerSave(col.id, ta.value));
   const close = el('button', { type: 'button', className: 'kb-mini', ariaLabel: tr('Отмена') }, icon('x'));
   close.addEventListener('click', kbCloseComposer);
-  requestAnimationFrame(grow);
-  return el('div', { className: 'kb-composer' }, ta, el('div', { className: 'kb-composer-row' }, el('span', { className: 'kb-spacer' }), more, save, close));
+  requestAnimationFrame(() => {
+    kbFitComposer(ta);
+    syncVoiceHints();
+  });
+  return el('div', { className: 'kb-composer' },
+    el('div', { className: 'kb-composer-shell' },
+      el('div', { className: 'kb-composer-tools' }, voiceBtn, voiceRecBtn),
+      ta,
+    ),
+    el('div', { className: 'kb-composer-row' }, el('span', { className: 'kb-spacer' }), more, save, close),
+  );
 }
 
 async function kbComposerSave(colId, text) {
-  const title = String(text || '').trim();
+  const { title, body } = kbSplitComposerText(text);
   if (!title) {
     kbShake($('kanbanBoard').querySelector('.kb-composer'));
     return;
   }
+  if (voice.field && kbVoiceSlots.some((s) => voiceField(s) === voice.field)) stopVoice();
   kbComposer = { colId, text: '' };
   try {
-    applyKanban(await post('/api/kanban/card', { title, body: '', columnId: colId }));
+    applyKanban(await post('/api/kanban/card', { title, body, columnId: colId }));
     kbFocusComposer();
     const list = $('kanbanBoard').querySelector(`.kb-col[data-id="${CSS.escape(colId)}"] .kb-list`);
     if (list) list.scrollTo({ top: list.scrollHeight, behavior: KB_REDUCED ? 'auto' : 'smooth' });
   } catch (err) {
-    if (kbComposer) kbComposer.text = title;
+    if (kbComposer) kbComposer.text = String(text || '');
     say(err.message, true);
     renderKanbanBoard();
     kbFocusComposer();
@@ -8789,13 +8907,14 @@ function kbOpenCard(card, preset = {}) {
     status.replaceChildren(el('i'), document.createTextNode(tr(L.KANBAN_STATUS[card.status] || card.status) + (card.round ? ` · ${card.round}/${card.maxRounds}` : '')));
   }
   $('kbCardName').value = card ? card.title : preset.title || '';
-  $('kbCardBody').value = card ? card.body : '';
+  $('kbCardBody').value = card ? card.body : preset.body || '';
   setOptions($('kbCardColumn'), board.columns.map((c) => el('option', { value: c.id }, c.title)));
   $('kbCardColumn').value = card ? card.columnId : preset.columnId || board.columns[0].id;
   const col = kbColumn($('kbCardColumn').value);
   $('kbCardModal').style.setProperty('--kb-c', col ? kbColColor(col) : 'var(--copper)');
   kbStepper($('kbCardRounds'), card ? card.maxRounds : 3, 1, 20);
   kbPeople($('kbCardAgents'), card ? card.assigneeKeys : []);
+  kbRenderCardActivity(card);
   $('kbCardReportWrap').hidden = !(card && card.summary);
   $('kbCardReport').textContent = (card && card.summary) || '';
   $('kbCardError').hidden = true;
@@ -8807,6 +8926,83 @@ function kbOpenCard(card, preset = {}) {
       $('kbCardBody').focus();
     } else name.focus();
   });
+}
+
+/** Отчёты и живой ход (текст / тулы / мысли) по агентам карточки и её детей. */
+function kbRenderCardActivity(card) {
+  const wrap = $('kbCardActivityWrap');
+  const box = $('kbCardActivity');
+  if (!card) {
+    wrap.hidden = true;
+    box.replaceChildren();
+    return;
+  }
+  const keys = new Set([...(card.assigneeKeys || []), ...Object.keys(card.reports || {}), ...Object.keys(card.activity || {})]);
+  for (const id of card.childIds || []) {
+    const child = kbCard(id);
+    if (!child) continue;
+    for (const k of child.assigneeKeys || []) keys.add(k);
+    for (const k of Object.keys(child.reports || {})) keys.add(k);
+    for (const k of Object.keys(child.activity || {})) keys.add(k);
+  }
+  const panels = [];
+  for (const key of keys) {
+    const agent = kbAgent(key);
+    const liveNow = Boolean(agent.busy && agent.cardId === card.id)
+      || Boolean(agent.busy && (card.childIds || []).includes(agent.cardId));
+    const liveLines = liveNow && state.live && state.live[key] ? state.live[key] : [];
+    let stored = (card.activity && card.activity[key]) || [];
+    if (!stored.length) {
+      for (const id of card.childIds || []) {
+        const child = kbCard(id);
+        if (child && child.activity && child.activity[key] && child.activity[key].length) {
+          stored = child.activity[key];
+          break;
+        }
+      }
+    }
+    // Prefer live while running; иначе сохранённый ход
+    const lines = liveLines.length ? liveLines : stored;
+    const report = (card.reports && card.reports[key])
+      || ((card.childIds || []).map((id) => kbCard(id)).map((c) => c && c.reports && c.reports[key]).find(Boolean));
+    if (!lines.length && !report && !liveNow) continue;
+    const open = liveNow || Boolean(report);
+    const body = el('div', { className: 'kb-act-body' });
+    body.hidden = !open;
+    if (lines.length) {
+      for (const row of lines.slice(-60)) {
+        body.append(el('div', { className: `kb-act-line ${row.kind || 'text'}` }, row.text));
+      }
+    } else if (liveNow) body.append(el('div', { className: 'kb-act-empty' }, tr('Агент думает…')));
+    else body.append(el('div', { className: 'kb-act-empty' }, tr('Хода пока нет')));
+    if (report && report.text) body.append(el('div', { className: 'kb-act-report' }, report.text));
+    const badge = el('span', { className: `kb-act-badge${liveNow ? ' live' : ''}` }, liveNow ? tr('сейчас') : (report ? tr('отчёт') : tr('ход')));
+    const head = el('button', { type: 'button', className: 'kb-act-head' },
+      kbAvatar(key),
+      document.createTextNode(kbAgentName(key)),
+      el('span', { className: 'kb-spacer' }),
+      badge,
+    );
+    head.addEventListener('click', () => { body.hidden = !body.hidden; });
+    panels.push(el('div', { className: 'kb-act' }, head, body));
+  }
+  // Ссылки на дочерние карточки
+  if (card.childIds && card.childIds.length) {
+    const kids = el('div', { className: 'kb-act' });
+    kids.append(el('div', { className: 'kb-act-head', style: 'cursor:default' }, document.createTextNode(tr('Дочерние задачи'))));
+    const list = el('div', { className: 'kb-act-body' });
+    for (const id of card.childIds) {
+      const child = kbCard(id);
+      if (!child) continue;
+      const btn = el('button', { type: 'button', className: 'kb-link' }, `${tr(L.KANBAN_STATUS[child.status] || child.status)} · ${child.title}`);
+      btn.addEventListener('click', () => kbOpenCard(child));
+      list.append(btn);
+    }
+    kids.append(list);
+    panels.unshift(kids);
+  }
+  wrap.hidden = !panels.length;
+  box.replaceChildren(...panels);
 }
 
 function kbFormError(id, err) {

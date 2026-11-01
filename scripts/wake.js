@@ -465,14 +465,16 @@ function toolLine(block, cwd) {
 /**
  * Событие потока claude → строки живого хода [{ at, kind: 'text' | 'tool', text }]. Берём только assistant верхнего уровня:
  * без --include-partial-messages оно приходит одно на ход модели с полными блоками text и tool_use (доки claude, Context7, 22.09.2026).
- * thinking, результаты тулов и ходы вложенного субагента (parent_tool_use_id) - шум и мегабайты, в ленту не идут.
+ * Результаты тулов субагента (parent_tool_use_id) - шум; thinking берём короткой строкой (канбан показывает «мысли»).
  */
 function liveEntries(e, cwd) {
   if (!e || e.type !== 'assistant' || e.parent_tool_use_id || !Array.isArray(e.message && e.message.content)) return [];
   const at = Date.now();
   const out = [];
   for (const block of e.message.content) {
-    if (block && block.type === 'text' && String(block.text || '').trim()) out.push({ at, kind: 'text', text: oneLine(block.text, LIVE_TEXT) });
+    if (block && block.type === 'thinking' && String(block.thinking || block.text || '').trim()) {
+      out.push({ at, kind: 'think', text: oneLine(block.thinking || block.text, LIVE_TEXT) });
+    } else if (block && block.type === 'text' && String(block.text || '').trim()) out.push({ at, kind: 'text', text: oneLine(block.text, LIVE_TEXT) });
     else if (block && block.type === 'tool_use') out.push({ at, kind: 'tool', text: oneLine(toolLine(block, cwd), LIVE_TEXT) });
   }
   return out;

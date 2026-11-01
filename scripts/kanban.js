@@ -2,6 +2,8 @@
  * Канбан проекта: <root>/.cursor/bus-cursor/kanban.json - столбцы, карточки, скан → TASK агентам.
  * Контракт verify: в теле TASK блок verify:/checker:/maxRounds:/cardId: - парсит parseVerify().
  * PASS/FAIL от checker - первая строка DONE «verify: PASS|FAIL|EXHAUSTED|NEEDS_ANSWER».
+ * Роль столбца dispatch: агент-распределитель в DONE отдаёт route: - шина создаёт дочерние карточки
+ * в столбцах исполнителей. Пустой столбец на скане → перенос в dispatch или к столбцу assignee.
  */
 
 const fs = require('fs');
@@ -14,9 +16,10 @@ const tr = (...args) => require('./ui-i18n.js').tr(...args);
 
 const BOARD_FILE = (root) => path.join(root, '.cursor', 'bus-cursor', 'kanban.json');
 const LOCK_FILE = (root) => path.join(root, '.cursor', 'bus-cursor', 'kanban.lock');
-const ACTIVE = new Set(['open', 'running', 'partial', 'failed', 'needs_rework', 'needs_answer']);
+const ACTIVE = new Set(['open', 'running', 'partial', 'failed', 'needs_rework', 'needs_answer', 'watching']);
 const WORK_STATUSES = new Set(['open', 'failed', 'needs_rework']);
 const VERDICTS = new Set(['PASS', 'FAIL', 'EXHAUSTED', 'NEEDS_ANSWER']);
+const ACTIVITY_KEEP = 80; // хвост хода агента на карточке (текст / тулы / мысли)
 
 const newId = () => `k${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
@@ -57,7 +60,7 @@ function normColumn(col) {
   const id = String(col.id || '').trim() || newId();
   const title = String(col.title || '').trim().slice(0, 80) || tr('Столбец');
   const agentKeys = Array.isArray(col.agentKeys) ? [...new Set(col.agentKeys.map(String).filter(Boolean))] : [];
-  const role = col.role === 'done' || col.role === 'check' ? col.role : '';
+  const role = col.role === 'done' || col.role === 'check' || col.role === 'dispatch' ? col.role : '';
   const wip = Math.max(0, Math.min(99, Number(col.wip) || 0));
   return { id, title, agentKeys, wip, role, color: normColor(col.color) };
 }
@@ -77,9 +80,33 @@ function normCard(card) {
   const maxRounds = Math.max(1, Math.min(20, Number(card.maxRounds) || settings.DEFAULTS['verify.maxRounds'] || 3));
   const summary = String(card.summary || '').slice(0, 2000);
   const reports = card.reports && typeof card.reports === 'object' ? card.reports : {};
+  const parentId = String(card.parentId || '');
+  const childIds = Array.isArray(card.childIds) ? [...new Set(card.childIds.map(String).filter(Boolean))] : [];
+  const activity = normActivity(card.activity);
   const updatedAt = Number(card.updatedAt) || Date.now();
   const dispatchedAt = Number(card.dispatchedAt) || 0;
-  return { id, title, body, columnId, assigneeKeys, status, round, maxRounds, summary, reports, updatedAt, dispatchedAt };
+  return { id, title, body, columnId, assigneeKeys, status, round, maxRounds, summary, reports, parentId, childIds, activity, updatedAt, dispatchedAt };
+}
+
+function normActivity(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  const out = {};
+  for (const [key, list] of Object.entries(raw)) {
+    if (!Array.isArray(list)) continue;
+    out[String(key)] = list.slice(-ACTIVITY_KEEP).map((e) => ({
+      at: Number(e && e.at) || 0,
+      kind: e && e.kind === 'tool' ? 'tool' : e && e.kind === 'think' ? 'think' : 'text',
+      text: String(e && e.text || '').slice(0, 500),
+    })).filter((e) => e.text);
+  }
+  return out;
+}
+
+/** Дописать ход агента на карточку (живой поток / финальный снимок). */
+function appendActivity(card, agentKey, entries) {
+  if (!card || !agentKey || !Array.isArray(entries) || !entries.length) return;
+  const prev = Array.isArray(card.activity && card.activity[agentKey]) ? card.activity[agentKey] : [];
+  card.activity = { ...(card.activity || {}), [agentKey]: [...prev, ...entries].slice(-ACTIVITY_KEEP) };
 }
 
 function load(root) {
@@ -191,6 +218,79 @@ function parseVerdict(text) {
   return m[1].toUpperCase();
 }
 
+/**
+ * Блок route: в DONE диспетчера → [{ agent, column, title, body }].
+ * Формат:
+ *   route:
+ *   - agent: windows
+ *     column: Windows
+ *     title: …
+ *     body: |
+ *       многострочное
+ *   - agent: web
+ */
+function parseRoute(text) {
+  const raw = String(text || '').replace(/\r\n/g, '\n');
+  const start = raw.search(/(?:^|\n)route\s*:\s*(?:\n|$)/i);
+  if (start < 0) return [];
+  const from = raw.slice(start).replace(/^[^\n]*\n/, '');
+  const lines = from.split('\n');
+  const items = [];
+  let cur = null;
+  let bodyMode = false;
+  const flush = () => {
+    if (!cur) return;
+    if (cur.agent || cur.column || cur.title || cur.body) {
+      items.push({
+        agent: String(cur.agent || '').trim(),
+        column: String(cur.column || '').trim(),
+        title: String(cur.title || '').trim().slice(0, 200),
+        body: String(cur.body || '').trim(),
+      });
+    }
+    cur = null;
+    bodyMode = false;
+  };
+  for (const line of lines) {
+    if (/^[a-zA-Z][\w.-]*\s*:/.test(line) && !/^\s/.test(line) && !/^route\s*:/i.test(line.trim())) break;
+    const bullet = /^[-*]\s+(\S.*)$/.exec(line);
+    if (bullet) {
+      flush();
+      cur = { agent: '', column: '', title: '', body: '' };
+      const inline = bullet[1].trim();
+      const kv = /^(agent|column|title|body)\s*:\s*(.*)$/i.exec(inline);
+      if (kv) {
+        const key = kv[1].toLowerCase();
+        const val = kv[2].trim();
+        if (key === 'body' && (val === '|' || val === '>' || !val)) bodyMode = true;
+        else cur[key] = val === '|' || val === '>' ? '' : val;
+      } else cur.title = inline.slice(0, 200);
+      continue;
+    }
+    if (!cur) continue;
+    const nested = /^\s{2,}(agent|column|title|body)\s*:\s*(.*)$/i.exec(line);
+    if (nested) {
+      bodyMode = false;
+      const key = nested[1].toLowerCase();
+      const val = nested[2].trim();
+      if (key === 'body' && (val === '|' || val === '>' || !val)) {
+        bodyMode = true;
+        cur.body = cur.body || '';
+      } else cur[key] = val === '|' || val === '>' ? '' : val;
+      continue;
+    }
+    if (bodyMode) {
+      if (/^\s{2,}\S/.test(line) || /^\s*$/.test(line)) {
+        cur.body = `${cur.body ? `${cur.body}\n` : ''}${line.replace(/^\s{2}/, '')}`;
+        continue;
+      }
+      bodyMode = false;
+    }
+  }
+  flush();
+  return items.filter((it) => it.agent || it.column || it.title);
+}
+
 function columnById(board, id) {
   return board.columns.find((c) => c.id === id) || null;
 }
@@ -203,13 +303,121 @@ function checkColumns(board) {
   return board.columns.filter((c) => c.role === 'check');
 }
 
+function dispatchColumns(board) {
+  return board.columns.filter((c) => c.role === 'dispatch');
+}
+
 function workColumn(board) {
   return board.columns.find((c) => !c.role && c.agentKeys.length) || board.columns.find((c) => !c.role) || null;
+}
+
+/** Столбец исполнителя: тот, где в agentKeys есть key (не check/done/dispatch). */
+function columnForAgent(board, agentKey) {
+  if (!agentKey) return null;
+  const name = String(agentKey).split('@')[0].toLowerCase();
+  const match = (keys) => (keys || []).some((k) => k === agentKey || String(k).split('@')[0].toLowerCase() === name);
+  return board.columns.find((c) => !c.role && match(c.agentKeys))
+    || board.columns.find((c) => c.role !== 'check' && c.role !== 'done' && c.role !== 'dispatch' && match(c.agentKeys))
+    || null;
+}
+
+function columnByTitle(board, title) {
+  const want = String(title || '').trim().toLowerCase();
+  if (!want) return null;
+  return board.columns.find((c) => c.title.toLowerCase() === want) || null;
 }
 
 function assigneesOf(card, column) {
   if (card.assigneeKeys && card.assigneeKeys.length) return card.assigneeKeys;
   return (column && column.agentKeys) || [];
+}
+
+/** Ключ агента → короткое имя для сопоставления. */
+const agentNameOf = (key) => String(key || '').split('@')[0].toLowerCase();
+
+/**
+ * Карточка в столбце без агентов: перенести в dispatch или в столбец assignee.
+ * Несколько assignee → разрезать на дочерние. → true, если карточку трогали.
+ */
+function parkOrSplitCard(board, card) {
+  const col = columnById(board, card.columnId);
+  if (!col || col.role === 'done' || col.role === 'check') return false;
+  if (col.role === 'dispatch') return false;
+  if (col.agentKeys.length) return false;
+
+  const keys = (card.assigneeKeys || []).filter(Boolean);
+  if (!keys.length) {
+    const disp = dispatchColumns(board)[0];
+    if (disp && card.columnId !== disp.id) {
+      card.columnId = disp.id;
+      card.updatedAt = Date.now();
+      return true;
+    }
+    return false;
+  }
+
+  if (keys.length === 1) {
+    const target = columnForAgent(board, keys[0]);
+    if (target && target.id !== card.columnId) {
+      card.columnId = target.id;
+      card.updatedAt = Date.now();
+      return true;
+    }
+    const disp = dispatchColumns(board)[0];
+    if (!target && disp && card.columnId !== disp.id) {
+      card.columnId = disp.id;
+      card.updatedAt = Date.now();
+      return true;
+    }
+    return false;
+  }
+
+  // Несколько исполнителей - дочерние карточки по столбцам агентов
+  if (card.childIds && card.childIds.length) return false;
+  const children = [];
+  for (const key of keys) {
+    const target = columnForAgent(board, key) || workColumn(board) || col;
+    const child = normCard({
+      id: newId(),
+      title: card.title,
+      body: card.body,
+      columnId: target.id,
+      assigneeKeys: [key],
+      status: 'open',
+      maxRounds: card.maxRounds,
+      parentId: card.id,
+    });
+    board.cards.push(child);
+    children.push(child.id);
+  }
+  card.childIds = children;
+  card.status = 'watching';
+  card.summary = tr('Распределено на {n} задач(и)', { n: children.length });
+  card.updatedAt = Date.now();
+  const disp = dispatchColumns(board)[0];
+  if (disp) card.columnId = disp.id;
+  return true;
+}
+
+function refreshParent(board, parentId) {
+  if (!parentId) return;
+  const parent = board.cards.find((c) => c.id === parentId);
+  if (!parent || !parent.childIds || !parent.childIds.length) return;
+  const kids = parent.childIds.map((id) => board.cards.find((c) => c.id === id)).filter(Boolean);
+  if (!kids.length) return;
+  const allDone = kids.every((c) => c.status === 'done');
+  const anyAlert = kids.some((c) => c.status === 'failed' || c.status === 'needs_rework' || c.status === 'needs_answer');
+  parent.updatedAt = Date.now();
+  if (allDone) {
+    parent.status = 'done';
+    parent.summary = kids.map((c) => `## ${c.title}\n${c.summary || ''}`).join('\n\n').slice(0, 2000);
+    const done = doneColumn(board);
+    if (done) parent.columnId = done.id;
+  } else if (anyAlert) {
+    parent.status = 'needs_answer';
+  } else {
+    parent.status = 'watching';
+  }
 }
 
 function cardTaskBody(card, agentKey, role) {
@@ -230,6 +438,44 @@ function cardTaskBody(card, agentKey, role) {
   ];
   if (parsed.checker) lines.push(`checker: ${parsed.checker}`);
   return lines.join('\n');
+}
+
+/** TASK распределителю: в DONE ждать блок route: с agent/column. */
+function dispatcherTaskBody(card, agentKey, board) {
+  const workCols = board.columns.filter((c) => c.role !== 'done' && c.role !== 'check' && c.role !== 'dispatch');
+  const roster = workCols.map((c) => {
+    const agents = (c.agentKeys || []).map((k) => agentNameOf(k)).filter(Boolean);
+    return `- «${c.title}»${agents.length ? ` → ${agents.join(', ')}` : ' (без агентов)'}`;
+  }).join('\n');
+  return [
+    `# Канбан - распредели задачу: ${card.title}`,
+    '',
+    card.body || card.title,
+    '',
+    'Ты dispatcher: сам код не пиши. Реши, каким агентам / столбцам отдать работу.',
+    'В DONE оркестратору обязательно блок route: - по одному пункту на исполнителя.',
+    'Пример:',
+    'route:',
+    '- agent: windows',
+    '  column: Windows',
+    '  title: Собрать установщик',
+    '- agent: web',
+    '  title: Сверстать лендинг',
+    '  body: |',
+    '    детали для web-агента',
+    '',
+    'Можно одному агенту или нескольким. column - по желанию (имя столбца на доске).',
+    '',
+    'Столбцы и агенты доски:',
+    roster || '(столбцов нет)',
+    '',
+    `cardId: ${card.id}`,
+    'role: dispatcher',
+    `assignee: ${agentKey}`,
+    'verify:',
+    '- распредели задачу по исполнителям в route:',
+    `maxRounds: ${card.maxRounds}`,
+  ].join('\n');
 }
 
 function checkerTaskBody(card, makerReports, criteria, maxRounds) {
@@ -257,16 +503,22 @@ function checkerTaskBody(card, makerReports, criteria, maxRounds) {
 }
 
 /**
- * Скан: карточки в рабочих столбцах → TASK makers.
+ * Скан: пустые столбцы → park/split; dispatch → TASK dispatcher; рабочие → TASK makers.
  * resolveAgent(key) → agent | null; deliverAndWake(from, to, text) шлёт и будит.
- * → { board, sent: number, skipped: number }
+ * → { board, sent: number, skipped: number, moved: number }
  */
 function scan(root, { resolveAgent, deliverAndWake, orchestrator }) {
   if (!orchestrator) throw new KanbanError(tr('Нет оркестратора проекта.'));
   let sent = 0;
   let skipped = 0;
+  let moved = 0;
   const board = update(root, (b) => {
     b.scannedAt = Date.now();
+    // Сначала припарковать карточки без агентов в столбце
+    for (const card of b.cards) {
+      if (!WORK_STATUSES.has(card.status)) continue;
+      if (parkOrSplitCard(b, card)) moved += 1;
+    }
     for (const card of b.cards) {
       const col = columnById(b, card.columnId);
       if (!col || col.role === 'done' || col.role === 'check') {
@@ -274,6 +526,11 @@ function scan(root, { resolveAgent, deliverAndWake, orchestrator }) {
         continue;
       }
       if (!WORK_STATUSES.has(card.status)) {
+        skipped += 1;
+        continue;
+      }
+      // Родитель уже раздал детей - не шлём ему maker-задачу повторно
+      if (card.childIds && card.childIds.length && card.status === 'watching') {
         skipped += 1;
         continue;
       }
@@ -294,25 +551,76 @@ function scan(root, { resolveAgent, deliverAndWake, orchestrator }) {
         skipped += 1;
         continue;
       }
-      card.reports = {};
+      const isDispatch = col.role === 'dispatch';
+      card.reports = isDispatch ? card.reports || {} : {};
       card.status = agents.length > 1 ? 'partial' : 'running';
       card.dispatchedAt = Date.now();
       card.updatedAt = Date.now();
       for (const { key, agent } of agents) {
-        const text = cardTaskBody(card, key, 'maker');
+        const text = isDispatch ? dispatcherTaskBody(card, key, b) : cardTaskBody(card, key, 'maker');
         deliverAndWake(orchestrator, agent, text, { cardId: card.id, verify: true });
         sent += 1;
       }
     }
     return b;
   });
-  return { board, sent, skipped, ...badge(board) };
+  return { board, sent, skipped, moved, ...badge(board) };
+}
+
+/**
+ * Диспетчер сдал DONE с route: → дочерние карточки в столбцах исполнителей.
+ * activity - опциональный снимок хода [{at,kind,text}].
+ */
+function noteDispatcherDone(root, { cardId, agentKey, text, activity }) {
+  if (!cardId) return null;
+  return update(root, (b) => {
+    const card = b.cards.find((c) => c.id === cardId);
+    if (!card) return b;
+    card.reports = { ...(card.reports || {}), [agentKey]: { text: String(text || '').slice(0, 8000), at: Date.now() } };
+    appendActivity(card, agentKey, activity);
+    card.updatedAt = Date.now();
+    card.summary = String(text || '').slice(0, 2000);
+
+    const routes = parseRoute(text);
+    if (!routes.length) {
+      card.status = 'needs_answer';
+      card.summary = tr('Диспетчер не вернул route: - укажи agent/column в DONE.') + `\n${card.summary || ''}`;
+      return b;
+    }
+
+    const children = [];
+    for (const route of routes) {
+      let target = route.column ? columnByTitle(b, route.column) : null;
+      if (!target && route.agent) target = columnForAgent(b, route.agent);
+      if (!target) target = workColumn(b) || columnById(b, card.columnId);
+      const assignee = route.agent
+        ? (target.agentKeys.find((k) => agentNameOf(k) === agentNameOf(route.agent)) || route.agent)
+        : (target.agentKeys[0] || '');
+      const child = normCard({
+        id: newId(),
+        title: route.title || card.title,
+        body: route.body || card.body,
+        columnId: target.id,
+        assigneeKeys: assignee ? [assignee] : [],
+        status: 'open',
+        maxRounds: card.maxRounds,
+        parentId: card.id,
+      });
+      b.cards.push(child);
+      children.push(child.id);
+    }
+    card.childIds = [...new Set([...(card.childIds || []), ...children])];
+    card.status = 'watching';
+    card.assigneeKeys = [agentKey];
+    return b;
+  });
 }
 
 /**
  * Maker сдал DONE по карточке: копим отчёт; когда все assignees ответили - TASK checker-ам.
+ * activity - снимок wake-live на момент DONE.
  */
-function noteMakerDone(root, { cardId, agentKey, text, resolveAgent, deliverAndWake, orchestrator }) {
+function noteMakerDone(root, { cardId, agentKey, text, resolveAgent, deliverAndWake, orchestrator, activity }) {
   if (!cardId) return null;
   return update(root, (b) => {
     const card = b.cards.find((c) => c.id === cardId);
@@ -320,6 +628,7 @@ function noteMakerDone(root, { cardId, agentKey, text, resolveAgent, deliverAndW
     const col = columnById(b, card.columnId);
     const keys = assigneesOf(card, col);
     card.reports = { ...(card.reports || {}), [agentKey]: { text: String(text || '').slice(0, 8000), at: Date.now() } };
+    appendActivity(card, agentKey, activity);
     card.updatedAt = Date.now();
     const pending = keys.filter((k) => !card.reports[k]);
     if (pending.length) {
@@ -339,11 +648,11 @@ function noteMakerDone(root, { cardId, agentKey, text, resolveAgent, deliverAndW
     if (!checkerKeys.length && conf['kanban.defaultChecker']) checkerKeys = [String(conf['kanban.defaultChecker'])];
     checkerKeys = [...new Set(checkerKeys)];
     if (!checkerKeys.length) {
-      // Нет checker - принимаем отчёты makers как PASS (мягкий путь)
       const done = doneColumn(b);
       card.status = 'done';
       card.summary = Object.values(card.reports).map((r) => r.text).join('\n').slice(0, 2000);
       if (done) card.columnId = done.id;
+      refreshParent(b, card.parentId);
       return b;
     }
     card.status = 'running';
@@ -353,7 +662,6 @@ function noteMakerDone(root, { cardId, agentKey, text, resolveAgent, deliverAndW
       if (!agent) continue;
       deliverAndWake(orchestrator, agent, body, { cardId: card.id, verify: true, checker: true });
     }
-    // Перенос в столбец проверки, если есть
     if (checkCols[0]) card.columnId = checkCols[0].id;
     return b;
   });
@@ -374,20 +682,24 @@ function applyAgentReport(root, { cardId, verdict, summary, resolveAgent, delive
       card.status = 'done';
       const done = doneColumn(b);
       if (done) card.columnId = done.id;
+      refreshParent(b, card.parentId);
       return b;
     }
     if (v === 'NEEDS_ANSWER') {
       card.status = 'needs_answer';
+      refreshParent(b, card.parentId);
       return b;
     }
     // FAIL или EXHAUSTED
     card.round += 1;
     if (v === 'EXHAUSTED' || card.round >= card.maxRounds) {
       card.status = 'needs_rework';
+      refreshParent(b, card.parentId);
       return b;
     }
     card.status = 'failed';
-    const work = workColumn(b);
+    refreshParent(b, card.parentId);
+    const work = columnForAgent(b, (card.assigneeKeys || [])[0]) || workColumn(b);
     if (work) card.columnId = work.id;
     // Авто-retry: TASK makers с логом ошибки
     if (orchestrator && resolveAgent && deliverAndWake) {
@@ -428,7 +740,7 @@ function saveColumn(root, { id, title, agentKeys, wip, role, color, beforeId }) 
       if (title !== undefined) col.title = String(title).trim().slice(0, 80) || col.title;
       if (agentKeys !== undefined) col.agentKeys = [...new Set((agentKeys || []).map(String).filter(Boolean))];
       if (wip !== undefined) col.wip = Math.max(0, Math.min(99, Number(wip) || 0));
-      if (role !== undefined) col.role = role === 'done' || role === 'check' ? role : '';
+      if (role !== undefined) col.role = role === 'done' || role === 'check' || role === 'dispatch' ? role : '';
       if (color !== undefined) col.color = normColor(color);
     }
     if (col.role === 'done') {
@@ -501,7 +813,27 @@ function saveCard(root, { id, title, body, columnId, assigneeKeys, maxRounds }) 
 
 function deleteCard(root, id) {
   return update(root, (b) => {
-    b.cards = b.cards.filter((c) => c.id !== id);
+    const gone = b.cards.find((c) => c.id === id);
+    b.cards = b.cards.filter((c) => c.id !== id && c.parentId !== id);
+    if (gone && gone.parentId) {
+      const parent = b.cards.find((c) => c.id === gone.parentId);
+      if (parent) {
+        parent.childIds = (parent.childIds || []).filter((cid) => cid !== id);
+        refreshParent(b, parent.id);
+      }
+    }
+    return b;
+  });
+}
+
+/** Записать живой ход на карточку (UI / wake). */
+function recordActivity(root, { cardId, agentKey, entries }) {
+  if (!cardId || !agentKey || !entries || !entries.length) return null;
+  return update(root, (b) => {
+    const card = b.cards.find((c) => c.id === cardId);
+    if (!card) return b;
+    appendActivity(card, agentKey, entries);
+    card.updatedAt = Date.now();
     return b;
   });
 }
@@ -532,9 +864,12 @@ module.exports = {
   badge,
   parseVerify,
   parseVerdict,
+  parseRoute,
   scan,
   noteMakerDone,
+  noteDispatcherDone,
   applyAgentReport,
+  recordActivity,
   saveColumn,
   deleteColumn,
   reorderColumns,
