@@ -467,7 +467,7 @@ function liveState() {
   return live;
 }
 
-/** Каталог ленты: проект, будущий attach или cwd — см. L.feedScope. */
+/** Каталог ленты: проект, будущий attach или cwd - см. L.feedScope. */
 function feedScope(here) {
   if (!here || typeof here !== 'object') return null;
   if (here.root) return here.root;
@@ -605,6 +605,12 @@ const kanban = () => require('./kanban.js');
 let kanbanSignature = '';
 let kanbanScanTimer = null;
 
+// Страница читается с диска на каждый запрос, а модули - один раз при старте: после обновления скилла новая страница говорит со старым сервером
+const CODE_FILES = ['ui.js', 'kanban.js', 'bus.js', 'wake.js', 'cursor.js'].map((f) => path.join(__dirname, f));
+const codeStamp = () => Math.max(...CODE_FILES.map((f) => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } }));
+const CODE_AT_START = codeStamp();
+const codeStale = () => codeStamp() > CODE_AT_START + 1000;
+
 /** Доска текущего проекта + бейдж. Нет корня - пустая заглушка. */
 function kanbanState(snapshot = collectAgents()) {
   const root = snapshot.here.root;
@@ -626,7 +632,7 @@ function kanbanState(snapshot = collectAgents()) {
       }
       return { key: a.key, name: a.name, kind: a.kind, icon: a.icon || null, cardId: cardId || null, busy: Boolean(a.wake && a.wake.state === 'running') };
     });
-  return { ok: true, board, root, ...counts, agents, scanMin: settings.get(root)['kanban.scanMin'], hint: tr('Скан идёт, пока открыт UI. Закроешь - карточки ждут.') };
+  return { ok: true, board, root, ...counts, agents, stale: codeStale(), scanMin: settings.get(root)['kanban.scanMin'], hint: tr('Скан идёт, пока открыт UI. Закроешь - карточки ждут.') };
 }
 
 function resolveKanbanKey(snapshot, key) {
@@ -639,6 +645,38 @@ function kanbanDeliverWake(snapshot, from, to, text) {
   const sent = bus.deliver(from, to, 'TASK', text, [], { ui: true });
   bus.autoWake(from, to, 'TASK', { here: snapshot.here.root || cwd, ringSelf: true, human: true, messageId: sent.id });
   return sent;
+}
+
+/**
+ * Сторож доски: «в работе» без живого запуска → «завис» с причиной; сетевой сбой Cursor - сами поднимаем заново (wakeCard, auto).
+ * Зовётся тиком канбана и при открытии доски. Ошибки не роняют: сторож - не повод не показать доску.
+ */
+function reconcileKanban(snapshot) {
+  const root = snapshot.here.root;
+  if (!root) return;
+  try {
+    const k = kanban();
+    const off = !wake.enabled(root);
+    const agentRun = (key) => {
+      const agent = resolveKanbanKey(snapshot, key);
+      if (!agent || !agent.box) return null;
+      const st = wake.state(agent.box) || {};
+      return { running: wake.running(agent.box), state: st.state || '', at: Number(st.at) || 0, reason: st.reason || '', unread: bus.unread(agent), off };
+    };
+    const { stalled } = k.reconcile(root, { agentRun });
+    const orch = bus.orchestratorOf(root);
+    for (const s of stalled.filter((x) => x.transient)) {
+      if (!orch) break;
+      try {
+        k.wakeCard(root, { id: s.id, auto: true, resolveAgent: (key) => resolveKanbanKey(snapshot, key), deliverAndWake: (f, t, text) => kanbanDeliverWake(snapshot, f, t, text), orchestrator: orch });
+        bus.auditNote(`ui kanban auto-wake | ${s.id}`);
+      } catch (e) {
+        if (!(e instanceof k.KanbanError)) throw e;
+      }
+    }
+  } catch (e) {
+    if (!(e instanceof bus.BusError)) console.error(`канбан-сторож: ${e.message}`);
+  }
 }
 
 function broadcastKanban(snapshot = collectAgents()) {
@@ -665,6 +703,17 @@ function kanbanAction(action, body) {
     else if (body.reorder) k.reorderColumns(root, body.ids);
     else k.saveColumn(root, body);
   } else if (action === 'card') {
+    if (body.answer !== undefined || body.wake) {
+      if (!orch) throw new bus.BusError(tr('Нет оркестратора проекта.'));
+      const opts = { id: String(body.id || ''), resolveAgent: resolve, deliverAndWake, orchestrator: orch };
+      // Зависший запуск снимаем: иначе новый TASK ляжет в inbox и будет ждать, пока висящий раннер не кончится
+      const result = body.wake
+        ? k.wakeCard(root, { ...opts, key: String(body.key || ''), beforeWake: (agent) => wake.running(agent.box) && wake.stop(agent.box, orch.name) })
+        : k.answerCard(root, { ...opts, text: body.answer });
+      bus.auditNote(`ui kanban ${body.wake ? 'wake' : 'answer'} | ${opts.id} | sent ${result.sent}`);
+      safeTick();
+      return { sent: result.sent, ...broadcastKanban(snapshot) };
+    }
     if (body.delete) k.deleteCard(root, body.id);
     else if (body.move) k.moveCard(root, body);
     else k.saveCard(root, body);
@@ -686,6 +735,8 @@ function armKanbanScan() {
       const snapshot = collectAgents();
       const root = snapshot.here.root;
       if (!root || !clients.size) return;
+      reconcileKanban(snapshot);
+      broadcastKanban(snapshot);
       const min = Math.max(1, settings.get(root)['kanban.scanMin'] || 5);
       const board = kanban().load(root);
       if (board.scannedAt && Date.now() - board.scannedAt < min * 60 * 1000) return;
@@ -693,7 +744,7 @@ function armKanbanScan() {
       if (!orch) return;
       const hasWork = board.cards.some((c) => {
         const col = board.columns.find((col) => col.id === c.columnId);
-        if (!col || col.role === 'done' || col.role === 'check') return false;
+        if (!col || col.role === 'done' || (col.role === 'check' && Object.keys(c.reports || {}).length)) return false;
         if (!(c.status === 'open' || c.status === 'failed' || c.status === 'needs_rework')) return false;
         if (c.childIds && c.childIds.length && c.status === 'watching') return false;
         // пустой столбец тоже «работа»: скан припаркует в dispatch / к агенту
@@ -2337,7 +2388,11 @@ async function handle(req, res, port) {
     if (url.pathname === '/icon.svg') return reply(res, 200, pageFile(ICON_MARK), 'image/svg+xml');
     if (url.pathname === '/cron.js') return reply(res, 200, pageFile(CRON), 'text/javascript; charset=utf-8');
     if (url.pathname === '/api/schedule') return reply(res, 200, scheduleState());
-    if (url.pathname === '/api/kanban') return reply(res, 200, kanbanState());
+    if (url.pathname === '/api/kanban') {
+      const snapshot = collectAgents();
+      reconcileKanban(snapshot);
+      return reply(res, 200, kanbanState(snapshot));
+    }
     if (url.pathname === '/api/settings') return reply(res, 200, settingsState());
     if (url.pathname === '/api/ping') return reply(res, 200, { app: APP, cwd, root: projectRootOf(cwd), clients: clients.size, appMode });
     if (url.pathname === '/api/dirs') return reply(res, 200, dirsState());

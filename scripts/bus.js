@@ -1083,11 +1083,37 @@ function deliver(from, to, type, text, attachments = [], { ui = false, btw = fal
       if (!(e instanceof kanban.KanbanError)) throw e;
     }
   }
+  try {
+    noteCardDialog(from, to, type, text, kanban);
+  } catch (e) {
+    if (!(e instanceof kanban.KanbanError)) throw e;
+  }
 
   const run = runOf(from);
   journalAppend(from, to, { id, t: stamp(), from: from.name, fk: KIND_CODE[from.kind], to: to.name, tk: KIND_CODE[to.kind], type, text, ...(d ? { d } : {}), ...(run ? { run } : {}), ...(files.length ? { files } : {}), ...(ui ? { ui: true } : {}), ...(injected ? { btw: true } : {}), ...(learns ? { evolve: true } : {}), ...(verified ? { verify: true } : {}) }, 'fr', 'tr');
   appendRotating(AUDIT, `${stamp()} | ${from.name} -> ${to.name} | ${type}${injected ? ' btw' : ''} | ${text.replace(/\s+/g, ' ').slice(0, AUDIT_LENGTH)}\n`, ROTATE_BYTES);
   return { id, btw: injected };
+}
+
+const kanbanKeyOf = (agent) => (agent.kind === 'local' ? `${agent.name}@${agent.root}` : agent.name);
+
+/**
+ * Вопросы по карточке: QUESTION агента с меткой verify оркестратору → карточка «ждёт ответа» с текстом вопроса.
+ * Ответ оркестратора в чате (не TASK канбана - в нём cardId:) → карточка снова в работе, метка verify возвращается агенту.
+ */
+function noteCardDialog(from, to, type, text, kanban) {
+  const wakeMod = require('./wake.js');
+  if (type === 'QUESTION' && isSubagent(from) && to.kind === 'project') {
+    const mark = wakeMod.verifyMark(from.box);
+    const root = from.root || to.root;
+    if (mark && mark.cardId && root) kanban.noteQuestion(root, { cardId: mark.cardId, agentKey: kanbanKeyOf(from), role: mark.role, text });
+    return;
+  }
+  if (from.kind !== 'project' || !isSubagent(to) || !from.root || /(?:^|\n)cardId:/.test(text)) return;
+  const hit = kanban.noteAnswer(from.root, { agentKey: kanbanKeyOf(to), text });
+  if (hit && !wakeMod.verifyMark(to.box)) {
+    wakeMod.setVerify(to.box, { id: '', from: from.name, criteria: [], checker: '', maxRounds: hit.maxRounds, round: 0, cardId: hit.cardId, role: hit.role });
+  }
 }
 
 /** Хвост wake-live.jsonl агента → activity для канбан-карточки. */
@@ -1149,6 +1175,7 @@ function handleVerifyDone(from, to, text, messageId) {
           resolveAgent,
           deliverAndWake,
           orchestrator: orch,
+          agentKey: kanbanKeyOf(from),
         });
       } catch (e) {
         if (!(e instanceof kanbanMod.KanbanError)) throw e;

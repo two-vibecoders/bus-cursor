@@ -417,7 +417,7 @@
   /** Живой ход работающего агента (событие live) → последние n строк для блока под отметкой «работает»: tone - text | tool. */
   function liveLines(lines, n = Infinity) {
     const list = Array.isArray(lines) ? lines.filter((l) => l && typeof l.text === 'string' && l.text) : [];
-    return list.slice(-n).map((l) => ({ tone: l.kind === 'tool' ? 'tool' : 'text', at: clockSec(l.at), text: l.text }));
+    return list.slice(-n).map((l) => ({ tone: l.kind === 'tool' || l.kind === 'think' ? l.kind : 'text', at: clockSec(l.at), text: l.text }));
   }
 
   /** Последняя строка живого хода - одной строкой под «работает…» в списке слева; пусто - нечего показать. */
@@ -1062,9 +1062,9 @@
     let alert = 0;
     for (const c of cards) {
       if (c.status === 'done') continue;
-      if (['open', 'running', 'partial', 'failed', 'needs_rework', 'needs_answer'].includes(c.status)) {
+      if (['open', 'running', 'partial', 'failed', 'needs_rework', 'needs_answer', 'stuck'].includes(c.status)) {
         active += 1;
-        if (c.status === 'failed' || c.status === 'needs_rework' || c.status === 'needs_answer') alert += 1;
+        if (c.status === 'failed' || c.status === 'needs_rework' || c.status === 'needs_answer' || c.status === 'stuck') alert += 1;
       }
     }
     return { count: active, alert: alert > 0 };
@@ -1078,6 +1078,7 @@
     failed: N('fail'),
     needs_rework: N('доработка'),
     needs_answer: N('нужен ответ'),
+    stuck: N('завис'),
     done: N('готово'),
   };
 

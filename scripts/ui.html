@@ -989,6 +989,7 @@
   .live[hidden] { display: none; }
   .live li { overflow-wrap: anywhere; animation: fade-up .3s var(--ease); }
   .live li.tool { font-family: var(--mono); color: var(--ink-soft); }
+  .live li.think { color: var(--question); font-style: italic; }
   .live time { margin-right: 6px; font-family: var(--mono); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
   .agent .live-last { display: block; font: 12px/1.4 var(--mono); color: var(--done); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Полоса над композером: агент думает - компактно слева, не на всю ширину */
@@ -1803,6 +1804,36 @@
     white-space: pre-wrap; color: var(--ink-soft); font: 12px/1.45 var(--body);
   }
   .kb-act-empty { font: 12px/1.4 var(--body); color: var(--ink-soft); padding: 4px 0; }
+  .kb-act-head[role="button"]:focus-visible { outline: 2px solid var(--copper); outline-offset: -2px; }
+  .kb-act-wake {
+    display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--glass-1); color: var(--ink-soft); font: 600 11px var(--body); cursor: pointer;
+  }
+  .kb-act-wake .icon { width: 12px; height: 12px; }
+  .kb-act-wake:hover:not(:disabled) { color: var(--copper); border-color: var(--copper); }
+  .kb-act-wake:disabled { opacity: .55; cursor: default; }
+  .kb-ask > span { color: var(--question); }
+  .kb-ask {
+    padding: 10px 12px; border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--question) 40%, var(--line));
+    background: color-mix(in srgb, var(--question) 6%, var(--field));
+  }
+  .kb-thread { display: grid; gap: 8px; max-height: 260px; overflow: auto; }
+  .kb-msg { display: grid; gap: 3px; max-width: 92%; }
+  .kb-msg.answer { justify-self: end; }
+  .kb-msg-head { display: flex; align-items: center; gap: 6px; font: 600 11px var(--body); color: var(--ink-soft); }
+  .kb-msg.answer .kb-msg-head { justify-content: flex-end; }
+  .kb-msg-head .kb-av { width: 18px; height: 18px; margin: 0; border: 0; }
+  .kb-msg-text {
+    padding: 8px 11px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line);
+    font: 12.5px/1.5 var(--body); color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .kb-msg.answer .kb-msg-text { background: var(--copper-soft); border-color: color-mix(in srgb, var(--copper) 35%, var(--line)); }
+  .kb-ask-form { display: flex; align-items: flex-end; gap: 6px; flex-wrap: wrap; }
+  .kb-ask-form[hidden] { display: none; }
+  .kb-ask-form textarea { flex: 1 1 240px; min-height: 44px; max-height: 200px; resize: none; }
+  .kb-ask-form .voice-hint { width: 28px; height: 28px; padding: 0; border-radius: 50%; justify-content: center; }
+  .kb-ask-form .voice-hint .icon { width: 16px; height: 16px; opacity: 1; }
   .kb-err { margin: 0; color: var(--danger); font-size: 12.5px; }
   .kb-shake { animation: kb-shake .4s var(--ease); }
 
@@ -3802,6 +3833,16 @@
         <span>Исполнители<small>пусто - агенты столбца</small></span>
         <div class="kb-people" id="kbCardAgents"></div>
       </div>
+      <div class="kb-field kb-ask" id="kbCardAskWrap" hidden>
+        <span id="kbCardAskHead">Агент ждёт ответа</span>
+        <div class="kb-thread" id="kbCardThread"></div>
+        <div class="kb-ask-form" id="kbCardAskForm" hidden>
+          <textarea id="kbCardAnswer" rows="2" placeholder="Ответ агенту… Ctrl+Enter - отправить" aria-label="Ответ агенту"></textarea>
+          <button type="button" class="voice-hint" id="kbCardAnswerVoice" hidden title="Диктовка: клик или удержание пробела" aria-label="Голосовой ввод"><svg class="icon"><use href="#i-mic"/></svg></button>
+          <button type="button" class="voice-rec" id="kbCardAnswerRec" hidden title="Остановить запись" aria-label="Остановить голосовой ввод"><span class="voice-rec-icon" aria-hidden="true"><svg class="icon"><use href="#i-mic"/></svg></span><span class="voice-rec-label">Голосовой ввод</span></button>
+          <button class="kb-btn primary sm" id="kbCardAnswerSend" type="button"><svg class="icon"><use href="#i-send"/></svg><span>Ответить</span></button>
+        </div>
+      </div>
       <div class="kb-field" id="kbCardActivityWrap" hidden>
         <span>Ход агентов</span>
         <div class="kb-activity" id="kbCardActivity"></div>
@@ -3814,6 +3855,7 @@
     </div>
     <footer class="kb-modal-foot">
       <button class="kb-btn danger sm" id="kbCardDelete" type="button" hidden><svg class="icon"><use href="#i-trash"/></svg><span>Удалить</span></button>
+      <button class="kb-btn sm" id="kbCardWake" type="button" hidden title="Снять зависший запуск и заново отдать агенту задачу"><svg class="icon"><use href="#i-bolt"/></svg><span>Разбудить агента</span></button>
       <span class="kb-hint">Ctrl+Enter - сохранить</span>
       <button class="kb-btn sm" type="button" data-kb-close>Отмена</button>
       <button class="kb-btn primary sm" type="submit">Сохранить</button>
@@ -7579,6 +7621,7 @@ const VOICE_SLOTS = [
   { field: 'schedPrompt', hint: 'schedVoiceHint', rec: 'schedVoiceRec', open: () => !$('schedule').hidden && !$('scheduleForm').hidden },
   { field: 'agentAsk', hint: 'agentVoiceHint', rec: 'agentVoiceRec', open: () => !$('agentPanel').hidden },
   { field: 'text', hint: 'composerVoiceHint', rec: 'composerVoiceRec', open: () => !kanbanOpen },
+  { field: 'kbCardAnswer', hint: 'kbCardAnswerVoice', rec: 'kbCardAnswerRec', open: () => !$('kbCardModal').hidden && !$('kbCardAskForm').hidden },
 ];
 let settingsVoiceSlots = []; // промпты в ⚙ - пересобираются с формой
 let kbVoiceSlots = []; // поле «Что нужно сделать» в канбане - пересобирается с композером
@@ -8008,6 +8051,8 @@ let scheduleNote = null; // daemonNote последнего действия - �
 // ---------- канбан ----------
 
 let kbModal = null; // { type: 'card'|'col', id } - открытая форма
+let kbStaleSaid = false;
+let kbAskId = ''; // карточка, чей вопрос ждёт ответа в открытой форме (она сама или дочерняя)
 let kbDrag = null; // перетаскивание карточки или столбца
 let kbComposer = null; // { colId, text } - быстрая задача внизу столбца
 let kbRenderPending = false; // пришло состояние во время перетаскивания - дорисуем после
@@ -8056,7 +8101,7 @@ function kbTone(status) {
   if (status === 'done') return 'done';
   if (status === 'running' || status === 'partial' || status === 'watching') return 'run';
   if (status === 'needs_answer') return 'ask';
-  if (status === 'failed' || status === 'needs_rework') return 'bad';
+  if (status === 'failed' || status === 'needs_rework' || status === 'stuck') return 'bad';
   return 'open';
 }
 
@@ -8099,7 +8144,12 @@ function renderKanbanBadge() {
 function applyKanban(data) {
   state.kanban = data;
   renderKanbanBadge();
+  if (data && data.stale && !kbStaleSaid) {
+    kbStaleSaid = true;
+    say(tr('Bus Cursor обновился, а сервер работает на старом коде: закрой Bus Cursor и открой заново, иначе канбан ведёт себя по-старому.'), true);
+  }
   if (!kanbanOpen) return;
+  kbRefreshOpenCard();
   // Не ломаем композер во время диктовки и перетаскивания - дорисуем после
   if (kbDrag || (voice.rec && kbVoiceSlots.some((s) => voiceField(s) === voice.field))) {
     kbRenderPending = true;
@@ -8794,6 +8844,9 @@ function kbShowModal(id) {
 function kbCloseModal(instant = false) {
   if (!kbModal) return;
   kbModal = null;
+  if (voice.field === $('kbCardAnswer')) stopVoice();
+  $('kbCardAskForm').hidden = true;
+  syncVoiceHints();
   for (const id of ['kbColModal', 'kbCardModal']) {
     if (instant) $(id).hidden = true;
     else kbFade($(id), false, KB_MODAL_OUT);
@@ -8914,15 +8967,20 @@ function kbOpenCard(card, preset = {}) {
   $('kbCardModal').style.setProperty('--kb-c', col ? kbColColor(col) : 'var(--copper)');
   kbStepper($('kbCardRounds'), card ? card.maxRounds : 3, 1, 20);
   kbPeople($('kbCardAgents'), card ? card.assigneeKeys : []);
+  if (kbAskId !== ((kbAskingCard(card) || {}).id || '')) $('kbCardAnswer').value = '';
+  kbRenderAsk(card);
+  kbRenderWake(card);
   kbRenderCardActivity(card);
   $('kbCardReportWrap').hidden = !(card && card.summary);
   $('kbCardReport').textContent = (card && card.summary) || '';
   $('kbCardError').hidden = true;
   kbArmDelete($('kbCardDelete'), !!card);
   kbShowModal('kbCardModal');
+  syncVoiceHints();
   requestAnimationFrame(() => {
     const name = $('kbCardName');
-    if (name.value) {
+    if (kbAskId) $('kbCardAnswer').focus();
+    else if (name.value) {
       $('kbCardBody').focus();
     } else name.focus();
   });
@@ -8937,19 +8995,20 @@ function kbRenderCardActivity(card) {
     box.replaceChildren();
     return;
   }
-  const keys = new Set([...(card.assigneeKeys || []), ...Object.keys(card.reports || {}), ...Object.keys(card.activity || {})]);
-  for (const id of card.childIds || []) {
-    const child = kbCard(id);
-    if (!child) continue;
-    for (const k of child.assigneeKeys || []) keys.add(k);
-    for (const k of Object.keys(child.reports || {})) keys.add(k);
-    for (const k of Object.keys(child.activity || {})) keys.add(k);
+  // Чей ход показывать: исполнители карточки или её столбца, авторы отчётов и хода, и все, кто прямо сейчас работает по ней или по детям
+  const owner = new Map(); // ключ агента → id карточки, в которой его будить
+  const kids = (card.childIds || []).map((id) => kbCard(id)).filter(Boolean);
+  for (const c of [card, ...kids]) {
+    const col = kbColumn(c.columnId);
+    const own = [...(c.assigneeKeys && c.assigneeKeys.length ? c.assigneeKeys : (col && col.role !== 'done' ? col.agentKeys : []) || []),
+      ...Object.keys(c.reports || {}), ...Object.keys(c.activity || {}), ...(c.question ? [c.question.by] : []),
+      ...kbAgents().filter((a) => a.cardId === c.id).map((a) => a.key)];
+    for (const k of own) if (!owner.has(k) || c !== card) owner.set(k, c.id);
   }
   const panels = [];
-  for (const key of keys) {
+  for (const [key, ownerId] of owner) {
     const agent = kbAgent(key);
-    const liveNow = Boolean(agent.busy && agent.cardId === card.id)
-      || Boolean(agent.busy && (card.childIds || []).includes(agent.cardId));
+    const liveNow = Boolean(agent.busy && agent.cardId && (agent.cardId === card.id || (card.childIds || []).includes(agent.cardId)));
     const liveLines = liveNow && state.live && state.live[key] ? state.live[key] : [];
     let stored = (card.activity && card.activity[key]) || [];
     if (!stored.length) {
@@ -8965,7 +9024,9 @@ function kbRenderCardActivity(card) {
     const lines = liveLines.length ? liveLines : stored;
     const report = (card.reports && card.reports[key])
       || ((card.childIds || []).map((id) => kbCard(id)).map((c) => c && c.reports && c.reports[key]).find(Boolean));
-    if (!lines.length && !report && !liveNow) continue;
+    const ownerCard = kbCard(ownerId);
+    const wakeable = Boolean(ownerCard && ownerCard.status !== 'done' && !(ownerCard.childIds && ownerCard.childIds.length) && agent.key);
+    if (!lines.length && !report && !liveNow && !wakeable) continue;
     const open = liveNow || Boolean(report);
     const body = el('div', { className: 'kb-act-body' });
     body.hidden = !open;
@@ -8977,13 +9038,21 @@ function kbRenderCardActivity(card) {
     else body.append(el('div', { className: 'kb-act-empty' }, tr('Хода пока нет')));
     if (report && report.text) body.append(el('div', { className: 'kb-act-report' }, report.text));
     const badge = el('span', { className: `kb-act-badge${liveNow ? ' live' : ''}` }, liveNow ? tr('сейчас') : (report ? tr('отчёт') : tr('ход')));
-    const head = el('button', { type: 'button', className: 'kb-act-head' },
+    const head = el('div', { role: 'button', tabIndex: 0, className: 'kb-act-head' },
       kbAvatar(key),
       document.createTextNode(kbAgentName(key)),
       el('span', { className: 'kb-spacer' }),
+      wakeable ? kbWakeButton(ownerId, key, agent.busy) : '',
       badge,
     );
-    head.addEventListener('click', () => { body.hidden = !body.hidden; });
+    const toggle = () => { body.hidden = !body.hidden; };
+    head.addEventListener('click', (e) => { if (!e.target.closest('.kb-act-wake')) toggle(); });
+    head.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === head) {
+        e.preventDefault();
+        toggle();
+      }
+    });
     panels.push(el('div', { className: 'kb-act' }, head, body));
   }
   // Ссылки на дочерние карточки
@@ -9004,6 +9073,138 @@ function kbRenderCardActivity(card) {
   wrap.hidden = !panels.length;
   box.replaceChildren(...panels);
 }
+
+/** Кнопка подъёма в панели агента: работает - снять зависший запуск и отдать задачу заново, нет - просто отдать и поднять. */
+function kbWakeButton(cardId, key, busy) {
+  const btn = el('button', {
+    type: 'button',
+    className: 'kb-act-wake',
+    title: busy ? tr('Снять зависший запуск и заново отдать агенту задачу') : tr('Заново отдать агенту задачу и поднять его'),
+  }, icon('bolt'), busy ? tr('Перезапустить') : tr('Разбудить'));
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    kbWake(cardId, key, btn);
+  });
+  return btn;
+}
+
+async function kbWake(cardId, key, btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const r = await post('/api/kanban/card', { id: cardId, wake: true, key: key || '' });
+    applyKanban(r);
+    if (typeof r.sent !== 'number') throw new Error(tr('Сервер Bus Cursor старой версии не умеет будить из карточки - закрой Bus Cursor и открой заново.'));
+    say(r.sent ? tr('Задача отдана агенту заново - он поднимается.') : tr('Будить некого.'));
+  } catch (err) {
+    kbFormError('kbCardError', err);
+  } finally {
+    if (btn && btn.isConnected) btn.disabled = false;
+  }
+}
+
+/** Кто ждёт ответа: сама карточка или первая дочерняя с вопросом. */
+function kbAskingCard(card) {
+  if (!card) return null;
+  if (card.status === 'needs_answer' && !(card.childIds && card.childIds.length)) return card;
+  return (card.childIds || []).map((id) => kbCard(id)).find((c) => c && c.status === 'needs_answer') || null;
+}
+
+/** Переписка по карточке: что спросил агент и что ему ответили; поле ответа - пока карточка ждёт ответа. */
+function kbRenderAsk(card) {
+  const wrap = $('kbCardAskWrap');
+  const asking = kbAskingCard(card);
+  const source = asking || card;
+  const thread = (source && source.thread) || [];
+  const items = thread.slice();
+  // Старые карточки и вердикт без автора: вопрос - это сводка
+  if (asking && !items.some((m) => m.kind === 'question') && asking.summary) items.push({ at: asking.updatedAt, from: (asking.question && asking.question.by) || '', kind: 'question', text: asking.summary });
+  wrap.hidden = !items.length && !asking;
+  kbAskId = asking ? asking.id : '';
+  if (wrap.hidden) return;
+  const who = asking && asking.question ? kbAgentName(asking.question.by) : '';
+  $('kbCardAskHead').textContent = asking
+    ? (who ? tr('{name} ждёт ответа', { name: who }) : tr('Агент ждёт ответа')) + (asking !== card ? ` · ${asking.title}` : '')
+    : tr('Переписка по задаче');
+  const box = $('kbCardThread');
+  const stick = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+  const when = (at) => (at ? el('time', {}, new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })) : '');
+  box.replaceChildren(...items.map((m) => {
+    const answer = m.kind === 'answer';
+    const head = answer
+      ? el('div', { className: 'kb-msg-head' }, tr('Ты'), when(m.at))
+      : el('div', { className: 'kb-msg-head' }, m.from ? kbAvatar(m.from) : '', m.from ? kbAgentName(m.from) : tr('Агент'), when(m.at));
+    return el('div', { className: `kb-msg ${answer ? 'answer' : 'question'}` }, head, el('div', { className: 'kb-msg-text' }, m.text));
+  }));
+  if (stick) box.scrollTop = box.scrollHeight;
+  const form = $('kbCardAskForm');
+  const was = form.hidden;
+  form.hidden = !asking;
+  if (was !== form.hidden) syncVoiceHints();
+}
+
+/** «Разбудить агента» в подвале: только для карточки, которую ещё не раздали и не закрыли. */
+function kbRenderWake(card) {
+  const btn = $('kbCardWake');
+  const can = Boolean(card && card.status !== 'done' && !(card.childIds && card.childIds.length));
+  btn.hidden = !can;
+  if (!can) return;
+  const busy = kbAgents().some((a) => a.busy && a.cardId === card.id);
+  btn.querySelector('span').textContent = busy ? tr('Перезапустить агента') : tr('Разбудить агента');
+}
+
+/** Открытая карточка после события канбана: статус, вопрос, ход, отчёт - без пересборки формы, чтобы не сбить ввод. */
+function kbRefreshOpenCard() {
+  if (!kbModal || kbModal.type !== 'card' || !kbModal.id || $('kbCardModal').hidden) return;
+  const card = kbCard(kbModal.id);
+  if (!card) return;
+  const status = $('kbCardStatus');
+  status.className = `kb-status t-${kbTone(card.status)}`;
+  status.replaceChildren(el('i'), document.createTextNode(tr(L.KANBAN_STATUS[card.status] || card.status) + (card.round ? ` · ${card.round}/${card.maxRounds}` : '')));
+  kbRenderAsk(card);
+  kbRenderWake(card);
+  kbRenderCardActivity(card);
+  $('kbCardReportWrap').hidden = !card.summary;
+  $('kbCardReport').textContent = card.summary || '';
+}
+
+async function kbSendAnswer() {
+  const ta = $('kbCardAnswer');
+  const text = ta.value.trim();
+  if (!kbAskId) return;
+  if (!text) {
+    kbShake(ta);
+    ta.focus();
+    return;
+  }
+  if (voice.field === ta) stopVoice();
+  const btn = $('kbCardAnswerSend');
+  btn.disabled = true;
+  try {
+    const r = await post('/api/kanban/card', { id: kbAskId, answer: text });
+    if (typeof r.sent !== 'number') throw new Error(tr('Сервер Bus Cursor старой версии не принял ответ - закрой Bus Cursor и открой заново, потом ответь ещё раз.'));
+    ta.value = '';
+    fitArea(ta, 44, 200);
+    applyKanban(r);
+    say(tr('Ответ ушёл агенту - задача снова в работе.'));
+  } catch (err) {
+    kbFormError('kbCardError', err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+$('kbCardAnswerSend').addEventListener('click', kbSendAnswer);
+$('kbCardAnswer').addEventListener('input', () => fitArea($('kbCardAnswer'), 44, 200));
+$('kbCardAnswer').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    e.stopPropagation(); // Ctrl+Enter формы сохранил бы карточку
+    kbSendAnswer();
+  }
+});
+$('kbCardWake').addEventListener('click', () => {
+  if (kbModal && kbModal.id) kbWake(kbModal.id, '', $('kbCardWake'));
+});
 
 function kbFormError(id, err) {
   const node = $(id);

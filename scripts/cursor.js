@@ -140,6 +140,12 @@ function run({ cwd, agent = null, role = '', model = null, prompt: text, timeout
     let lastText = '';
     let routedModel = ''; // кого Router взял при Auto - только для подсказки, биллинг = billingModel
     let reported = 0;
+    let thought = ''; // thinking/delta приходит по кусочку - строка уходит в живой ход на completed или по длине
+    const flushThought = () => {
+      const text = oneLine(thought, LIVE_TEXT);
+      thought = '';
+      if (text && onLive) onLive({ at: Date.now(), kind: 'think', text });
+    };
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
     const kill = (flag) => () => {
@@ -179,6 +185,14 @@ function run({ cwd, agent = null, role = '', model = null, prompt: text, timeout
         }
       }
       if (e.type === 'tool_call' && e.tool_call) contentChars += Buffer.byteLength(JSON.stringify(e.tool_call), 'utf8');
+      if (e.type === 'thinking') {
+        if (e.subtype === 'delta' && typeof e.text === 'string') {
+          thought += e.text;
+          if (thought.length >= LIVE_TEXT - 20) flushThought();
+        } else if (e.subtype === 'completed') flushThought();
+        return;
+      }
+      if (thought) flushThought();
       if (onLive) for (const entry of liveEntries(e, cwd)) onLive(entry);
       if (e.type === 'assistant' && e.message && textOf(e).trim()) lastText = textOf(e).trim();
       report();

@@ -16,10 +16,16 @@ const tr = (...args) => require('./ui-i18n.js').tr(...args);
 
 const BOARD_FILE = (root) => path.join(root, '.cursor', 'bus-cursor', 'kanban.json');
 const LOCK_FILE = (root) => path.join(root, '.cursor', 'bus-cursor', 'kanban.lock');
-const ACTIVE = new Set(['open', 'running', 'partial', 'failed', 'needs_rework', 'needs_answer', 'watching']);
+const ACTIVE = new Set(['open', 'running', 'partial', 'failed', 'needs_rework', 'needs_answer', 'watching', 'stuck']);
+const STALL_GRACE_MS = 90 * 1000; // TASK отдан, а раннер ещё не взял лок - не повод звать карточку зависшей
+const AUTO_WAKE_TRIES = 2; // сетевой сбой Cursor - поднять заново сами, не больше раз подряд
+const TRANSIENT = /ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|socket hang up|network|\[aborted\]|\b50[234]\b|rate.?limit/i;
+// Ключ из JSON, записанного руками, бывает с удвоенными слэшами: D:\\\\Dev - иначе он не совпадёт с ключом агента. Начало UNC (@\\host) не трогаем
+const normKey = (key) => String(key).replace(/(?<!@)\\{2,}/g, '\\');
 const WORK_STATUSES = new Set(['open', 'failed', 'needs_rework']);
 const VERDICTS = new Set(['PASS', 'FAIL', 'EXHAUSTED', 'NEEDS_ANSWER']);
 const ACTIVITY_KEEP = 80; // хвост хода агента на карточке (текст / тулы / мысли)
+const THREAD_KEEP = 30; // вопросы агентов и ответы по карточке
 
 const newId = () => `k${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
@@ -59,7 +65,7 @@ function normColumn(col) {
   if (!col || typeof col !== 'object') return null;
   const id = String(col.id || '').trim() || newId();
   const title = String(col.title || '').trim().slice(0, 80) || tr('Столбец');
-  const agentKeys = Array.isArray(col.agentKeys) ? [...new Set(col.agentKeys.map(String).filter(Boolean))] : [];
+  const agentKeys = Array.isArray(col.agentKeys) ? [...new Set(col.agentKeys.filter(Boolean).map(normKey))] : [];
   const role = col.role === 'done' || col.role === 'check' || col.role === 'dispatch' ? col.role : '';
   const wip = Math.max(0, Math.min(99, Number(col.wip) || 0));
   return { id, title, agentKeys, wip, role, color: normColor(col.color) };
@@ -74,8 +80,9 @@ function normCard(card) {
   const title = String(card.title || '').trim().slice(0, 200) || tr('Задача');
   const body = String(card.body || '');
   const columnId = String(card.columnId || '');
-  const assigneeKeys = Array.isArray(card.assigneeKeys) ? [...new Set(card.assigneeKeys.map(String).filter(Boolean))] : [];
+  const assigneeKeys = Array.isArray(card.assigneeKeys) ? [...new Set(card.assigneeKeys.filter(Boolean).map(normKey))] : [];
   const status = String(card.status || 'open');
+  const wakeTries = Math.max(0, Number(card.wakeTries) || 0);
   const round = Math.max(0, Number(card.round) || 0);
   const maxRounds = Math.max(1, Math.min(20, Number(card.maxRounds) || settings.DEFAULTS['verify.maxRounds'] || 3));
   const summary = String(card.summary || '').slice(0, 2000);
@@ -83,10 +90,28 @@ function normCard(card) {
   const parentId = String(card.parentId || '');
   const childIds = Array.isArray(card.childIds) ? [...new Set(card.childIds.map(String).filter(Boolean))] : [];
   const activity = normActivity(card.activity);
+  const question = normQuestion(card.question);
+  const thread = Array.isArray(card.thread) ? card.thread.slice(-THREAD_KEEP).map(normThreadItem).filter(Boolean) : [];
   const updatedAt = Number(card.updatedAt) || Date.now();
   const dispatchedAt = Number(card.dispatchedAt) || 0;
-  return { id, title, body, columnId, assigneeKeys, status, round, maxRounds, summary, reports, parentId, childIds, activity, updatedAt, dispatchedAt };
+  return { id, title, body, columnId, assigneeKeys, status, round, maxRounds, summary, reports, parentId, childIds, activity, question, thread, updatedAt, dispatchedAt, wakeTries };
 }
+
+/** Открытый вопрос агента по карточке: кто спросил, в какой роли и что именно. */
+function normQuestion(q) {
+  if (!q || typeof q !== 'object' || !q.by) return null;
+  const role = ['maker', 'checker', 'dispatcher'].includes(q.role) ? q.role : 'maker';
+  return { by: String(q.by), role, text: String(q.text || '').slice(0, 4000), at: Number(q.at) || Date.now() };
+}
+
+function normThreadItem(m) {
+  if (!m || typeof m !== 'object' || !String(m.text || '').trim()) return null;
+  return { at: Number(m.at) || 0, from: String(m.from || ''), kind: m.kind === 'answer' ? 'answer' : 'question', text: String(m.text).slice(0, 4000) };
+}
+
+const pushThread = (card, item) => {
+  card.thread = [...(card.thread || []), { at: Date.now(), ...item }].slice(-THREAD_KEEP);
+};
 
 function normActivity(raw) {
   if (!raw || typeof raw !== 'object') return {};
@@ -146,7 +171,7 @@ function badge(board) {
     if (c.status === 'done') done += 1;
     else if (ACTIVE.has(c.status)) {
       active += 1;
-      if (c.status === 'failed' || c.status === 'needs_rework' || c.status === 'needs_answer') alert += 1;
+      if (c.status === 'failed' || c.status === 'needs_rework' || c.status === 'needs_answer' || c.status === 'stuck') alert += 1;
     }
   }
   return { active, alert, done };
@@ -406,7 +431,7 @@ function refreshParent(board, parentId) {
   const kids = parent.childIds.map((id) => board.cards.find((c) => c.id === id)).filter(Boolean);
   if (!kids.length) return;
   const allDone = kids.every((c) => c.status === 'done');
-  const anyAlert = kids.some((c) => c.status === 'failed' || c.status === 'needs_rework' || c.status === 'needs_answer');
+  const anyAlert = kids.some((c) => c.status === 'failed' || c.status === 'needs_rework' || c.status === 'needs_answer' || c.status === 'stuck');
   parent.updatedAt = Date.now();
   if (allDone) {
     parent.status = 'done';
@@ -521,7 +546,8 @@ function scan(root, { resolveAgent, deliverAndWake, orchestrator }) {
     }
     for (const card of b.cards) {
       const col = columnById(b, card.columnId);
-      if (!col || col.role === 'done' || col.role === 'check') {
+      // В проверке скан шлёт только задачу, положенную туда сразу (аудит): её делают агенты столбца. Проверку отчётов шлёт noteMakerDone
+      if (!col || col.role === 'done' || (col.role === 'check' && roleOf(b, card) !== 'maker')) {
         skipped += 1;
         continue;
       }
@@ -585,8 +611,11 @@ function noteDispatcherDone(root, { cardId, agentKey, text, activity }) {
     if (!routes.length) {
       card.status = 'needs_answer';
       card.summary = tr('Диспетчер не вернул route: - укажи agent/column в DONE.') + `\n${card.summary || ''}`;
+      card.question = { by: agentKey, role: 'dispatcher', text: String(text || '').slice(0, 4000), at: Date.now() };
+      pushThread(card, { from: agentKey, kind: 'question', text: String(text || '').slice(0, 4000) });
       return b;
     }
+    card.question = null;
 
     const children = [];
     for (const route of routes) {
@@ -630,6 +659,7 @@ function noteMakerDone(root, { cardId, agentKey, text, resolveAgent, deliverAndW
     card.reports = { ...(card.reports || {}), [agentKey]: { text: String(text || '').slice(0, 8000), at: Date.now() } };
     appendActivity(card, agentKey, activity);
     card.updatedAt = Date.now();
+    if (card.question && card.question.by === agentKey) card.question = null;
     const pending = keys.filter((k) => !card.reports[k]);
     if (pending.length) {
       card.status = 'partial';
@@ -639,14 +669,7 @@ function noteMakerDone(root, { cardId, agentKey, text, resolveAgent, deliverAndW
     const parsed = parseVerify(card.body) || { criteria: ['убедись, что задача выполнена'], maxRounds: card.maxRounds, checker: '' };
     const criteria = parsed.criteria.length ? parsed.criteria : ['убедись, что задача выполнена'];
     const checkCols = checkColumns(b);
-    let checkerKeys = [];
-    if (parsed.checker) checkerKeys = [parsed.checker];
-    else {
-      for (const cc of checkCols) checkerKeys.push(...cc.agentKeys);
-    }
-    const conf = settings.get(root);
-    if (!checkerKeys.length && conf['kanban.defaultChecker']) checkerKeys = [String(conf['kanban.defaultChecker'])];
-    checkerKeys = [...new Set(checkerKeys)];
+    const checkerKeys = checkersOf(root, b, card);
     if (!checkerKeys.length) {
       const done = doneColumn(b);
       card.status = 'done';
@@ -656,6 +679,7 @@ function noteMakerDone(root, { cardId, agentKey, text, resolveAgent, deliverAndW
       return b;
     }
     card.status = 'running';
+    card.dispatchedAt = Date.now();
     const body = checkerTaskBody(card, card.reports, criteria, card.maxRounds);
     for (const key of checkerKeys) {
       const agent = resolveAgent(key);
@@ -667,10 +691,19 @@ function noteMakerDone(root, { cardId, agentKey, text, resolveAgent, deliverAndW
   });
 }
 
+/** Кто проверяет карточку: checker: из verify, иначе агенты столбцов-проверки, иначе kanban.defaultChecker. */
+function checkersOf(root, board, card) {
+  const parsed = parseVerify(card.body);
+  let keys = parsed && parsed.checker ? [parsed.checker] : checkColumns(board).flatMap((cc) => cc.agentKeys);
+  const conf = settings.get(root);
+  if (!keys.length && conf['kanban.defaultChecker']) keys = [String(conf['kanban.defaultChecker'])];
+  return [...new Set(keys)];
+}
+
 /**
  * Вердикт checker / оркестратора по карточке.
  */
-function applyAgentReport(root, { cardId, verdict, summary, resolveAgent, deliverAndWake, orchestrator }) {
+function applyAgentReport(root, { cardId, verdict, summary, resolveAgent, deliverAndWake, orchestrator, agentKey = '' }) {
   const v = String(verdict || '').toUpperCase();
   if (!VERDICTS.has(v)) throw new KanbanError(tr('Вердикт: PASS, FAIL, EXHAUSTED или NEEDS_ANSWER.'));
   return update(root, (b) => {
@@ -687,9 +720,14 @@ function applyAgentReport(root, { cardId, verdict, summary, resolveAgent, delive
     }
     if (v === 'NEEDS_ANSWER') {
       card.status = 'needs_answer';
+      if (agentKey) {
+        card.question = { by: agentKey, role: 'checker', text: card.summary, at: Date.now() };
+        pushThread(card, { from: agentKey, kind: 'question', text: card.summary || tr('Проверяющему нужен ответ') });
+      }
       refreshParent(b, card.parentId);
       return b;
     }
+    card.question = null;
     // FAIL или EXHAUSTED
     card.round += 1;
     if (v === 'EXHAUSTED' || card.round >= card.maxRounds) {
@@ -838,11 +876,236 @@ function recordActivity(root, { cardId, agentKey, entries }) {
   });
 }
 
+// ---------- сторож «в работе» ----------
+
+/** Почему агент не работает по карточке, отданной в dispatchedAt; '' - всё в порядке или рано судить. */
+function stallReason(run, since, now) {
+  if (!run) return tr('агента нет в шине');
+  if (run.running) return '';
+  const ended = run.at >= since && ['ok', 'failed', 'stopped'].includes(run.state);
+  if (ended && run.state === 'failed') return tr('запуск упал: {why}', { why: run.reason || '?' });
+  if (ended && run.state === 'stopped') return tr('запуск остановлен');
+  if (ended && !run.unread) return tr('агент закончил запуск без DONE по задаче');
+  if (now - Math.max(since, run.at || 0) < STALL_GRACE_MS) return '';
+  if (run.unread) return run.off ? tr('задача лежит во входящих: автоподъём выключен') : run.state === 'limit' ? tr('задача лежит во входящих: лимит подъёмов в час') : tr('задача лежит во входящих, агент не поднялся');
+  return ended ? '' : tr('агент не поднялся');
+}
+
+/**
+ * Карточки «в работе», по которым никто не работает: запуск упал, остановлен, кончился без DONE или не начался.
+ * agentRun(key) → { running, state, at, reason, unread, off } | null. Такие карточки - «завис» с причиной в сводке.
+ * → { board, stalled: [{ id, transient }] } - transient: сетевой сбой Cursor, можно поднять заново без человека
+ */
+function reconcile(root, { agentRun, now = Date.now() }) {
+  if (!fs.existsSync(BOARD_FILE(root))) return { board: null, stalled: [] };
+  const check = (b) => {
+    const found = [];
+    for (const card of b.cards) {
+      const kids = (card.childIds || []).filter((id) => b.cards.some((c) => c.id === id));
+      if (card.status === 'watching' && !kids.length) {
+        found.push({ card, reasons: [{ key: '', why: tr('раздана, но дочерних задач нет') }], transient: false });
+        continue;
+      }
+      if (card.status !== 'running' && card.status !== 'partial') continue;
+      if (kids.length) continue;
+      const since = card.dispatchedAt || card.updatedAt || 0;
+      let targets = wakeTargets(root, b, card);
+      if (roleOf(b, card) === 'maker') targets = targets.filter((t) => !(card.reports && card.reports[t.key]));
+      if (!targets.length) continue;
+      const runs = targets.map((t) => ({ key: t.key, run: agentRun(t.key) }));
+      if (runs.some((r) => r.run && r.run.running)) continue;
+      const reasons = runs.map((r) => ({ key: r.key, why: stallReason(r.run, since, now), run: r.run })).filter((r) => r.why);
+      if (!reasons.length) continue;
+      found.push({ card, reasons, transient: reasons.every((r) => r.run && r.run.state === 'failed' && TRANSIENT.test(r.run.reason || '')) });
+    }
+    return found;
+  };
+  if (!check(load(root)).length) return { board: null, stalled: [] };
+  const stalled = [];
+  const board = update(root, (b) => {
+    for (const { card, reasons, transient } of check(b)) {
+      const auto = transient && card.wakeTries < AUTO_WAKE_TRIES;
+      stalled.push({ id: card.id, transient: auto });
+      if (auto) continue; // поднимет зовущий через wakeCard - статус «в работе» остаётся
+      card.status = 'stuck';
+      card.summary = [tr('Завис - нажми «Разбудить агента»:'), ...reasons.map((r) => (r.key ? `- ${agentNameOf(r.key)}: ${r.why}` : `- ${r.why}`))].join('\n').slice(0, 2000);
+      card.updatedAt = now;
+      refreshParent(b, card.parentId);
+    }
+    return b;
+  });
+  return { board, stalled };
+}
+
+// ---------- вопрос агента, ответ, повторный подъём ----------
+
+/** Агент по карточке спросил оркестратора (QUESTION): карточка ждёт ответа, вопрос виден в ней. */
+function noteQuestion(root, { cardId, agentKey, role, text }) {
+  if (!cardId || !agentKey) return null;
+  return update(root, (b) => {
+    const card = b.cards.find((c) => c.id === cardId);
+    if (!card || card.status === 'done') return b;
+    card.status = 'needs_answer';
+    card.question = normQuestion({ by: agentKey, role, text, at: Date.now() });
+    pushThread(card, { from: agentKey, kind: 'question', text: String(text || '').slice(0, 4000) });
+    card.updatedAt = Date.now();
+    refreshParent(b, card.parentId);
+    return b;
+  });
+}
+
+/**
+ * Оркестратор ответил агенту в чате (не из карточки): карточка с его открытым вопросом снова в работе.
+ * → { cardId, role, maxRounds } | null - без карточки с вопросом этого агента.
+ */
+function noteAnswer(root, { agentKey, text }) {
+  if (!agentKey || !fs.existsSync(BOARD_FILE(root))) return null;
+  if (!load(root).cards.some((c) => c.question && c.question.by === agentKey && c.status === 'needs_answer')) return null;
+  let hit = null;
+  update(root, (b) => {
+    const card = b.cards.find((c) => c.question && c.question.by === agentKey && c.status === 'needs_answer');
+    if (!card) return b;
+    hit = { cardId: card.id, role: card.question.role, maxRounds: card.maxRounds };
+    pushThread(card, { from: '', kind: 'answer', text: String(text || '').slice(0, 4000) });
+    card.question = null;
+    card.status = 'running';
+    card.dispatchedAt = Date.now();
+    card.updatedAt = Date.now();
+    refreshParent(b, card.parentId);
+    return b;
+  });
+  return hit;
+}
+
+/**
+ * Роль агента по месту карточки: распределение - dispatcher; проверка - checker, если есть что проверять (отчёты makers),
+ * а карточка, положенная в проверку сразу (аудит), - работа агентов этого столбца: maker. Иначе maker.
+ */
+function roleOf(board, card) {
+  const col = columnById(board, card.columnId);
+  if (col && col.role === 'dispatch') return 'dispatcher';
+  if (col && col.role === 'check') return Object.keys(card.reports || {}).length ? 'checker' : 'maker';
+  return 'maker';
+}
+
+/** Кого будить по карточке: [{ key, role }]. Открытый вопрос - его автор в первую очередь. */
+function wakeTargets(root, board, card) {
+  const col = columnById(board, card.columnId);
+  const role = roleOf(board, card);
+  const keys = role === 'checker' ? checkersOf(root, board, card) : assigneesOf(card, col).length || !col || col.role !== 'check' ? assigneesOf(card, col) : checkersOf(root, board, card);
+  return keys.map((key) => ({ key, role }));
+}
+
+function taskBodyFor(root, board, card, key, role) {
+  if (role === 'dispatcher') return dispatcherTaskBody(card, key, board);
+  if (role === 'checker') {
+    const parsed = parseVerify(card.body);
+    const criteria = parsed && parsed.criteria.length ? parsed.criteria : ['убедись, что задача выполнена'];
+    return checkerTaskBody(card, card.reports, criteria, card.maxRounds);
+  }
+  return cardTaskBody(card, key, 'maker');
+}
+
+/**
+ * Ответ пользователя из карточки: TASK автору вопроса (или исполнителям) с задачей, вопросом и ответом; карточка снова в работе.
+ * → { board, sent }
+ */
+function answerCard(root, { id, text, resolveAgent, deliverAndWake, orchestrator }) {
+  const answer = String(text || '').trim();
+  if (!answer) throw new KanbanError(tr('Напиши ответ агенту.'));
+  if (!orchestrator) throw new KanbanError(tr('Нет оркестратора проекта.'));
+  let sent = 0;
+  const board = update(root, (b) => {
+    const card = b.cards.find((c) => c.id === id);
+    if (!card) throw new KanbanError(tr('Карточка не найдена.'));
+    const q = card.question;
+    const targets = q ? [{ key: q.by, role: q.role }] : wakeTargets(root, b, card);
+    const agents = targets.map((t) => ({ ...t, agent: resolveAgent(t.key) })).filter((t) => t.agent);
+    if (!agents.length) throw new KanbanError(tr('Некому отвечать: у карточки нет агента в шине.'));
+    pushThread(card, { from: '', kind: 'answer', text: answer.slice(0, 4000) });
+    card.question = null;
+    card.status = 'running';
+    card.dispatchedAt = Date.now();
+    card.updatedAt = Date.now();
+    for (const { key, role, agent } of agents) {
+      if (role === 'maker' && card.reports) delete card.reports[key];
+      const body = [
+        taskBodyFor(root, b, card, key, role),
+        '',
+        '## Ответ пользователя на твой вопрос',
+        q && q.text ? `Вопрос был:\n${q.text.slice(0, 2000)}\n` : '',
+        answer,
+        '',
+        'Продолжи задачу с учётом ответа и закончи DONE оркестратору.',
+      ].filter((l) => l !== null).join('\n');
+      deliverAndWake(orchestrator, agent, body, { cardId: card.id, verify: true });
+      sent += 1;
+    }
+    refreshParent(b, card.parentId);
+    return b;
+  });
+  return { board, sent };
+}
+
+/**
+ * «Разбудить агента»: зависший запуск снять (beforeWake), задачу карточки отдать заново и поднять.
+ * key - одного агента, без key - всех, кто сейчас должен работать по карточке. → { board, sent }
+ */
+function wakeCard(root, { id, key = '', resolveAgent, deliverAndWake, orchestrator, beforeWake, auto = false }) {
+  if (!orchestrator) throw new KanbanError(tr('Нет оркестратора проекта.'));
+  let sent = 0;
+  const board = update(root, (b) => {
+    const card = b.cards.find((c) => c.id === id);
+    if (!card) throw new KanbanError(tr('Карточка не найдена.'));
+    if (card.status === 'done') throw new KanbanError(tr('Задача уже готова - будить некого.'));
+    card.childIds = (card.childIds || []).filter((cid) => b.cards.some((c) => c.id === cid));
+    if (card.childIds.length) throw new KanbanError(tr('Задача уже раздана - буди агента в дочерней задаче.'));
+    let targets = wakeTargets(root, b, card);
+    if (card.question && !targets.some((t) => t.key === card.question.by)) targets.unshift({ key: card.question.by, role: card.question.role });
+    if (key) targets = targets.filter((t) => t.key === key).concat(targets.some((t) => t.key === key) ? [] : [{ key, role: roleOf(b, card) }]);
+    const agents = targets.map((t) => ({ ...t, agent: resolveAgent(t.key) })).filter((t) => t.agent);
+    if (!agents.length) throw new KanbanError(tr('Некого будить: у карточки нет агента в шине.'));
+    card.status = agents.length > 1 && roleOf(b, card) === 'maker' ? 'partial' : 'running';
+    card.dispatchedAt = Date.now();
+    card.updatedAt = Date.now();
+    card.wakeTries = auto ? card.wakeTries + 1 : 0;
+    for (const { key: k, role, agent } of agents) {
+      if (beforeWake) beforeWake(agent);
+      if (role === 'maker' && card.reports) delete card.reports[k];
+      const pending = card.question && card.question.by === k ? card.question : null;
+      const body = [
+        taskBodyFor(root, b, card, k, role),
+        '',
+        '## Повторный подъём',
+        'Прошлый запуск по этой задаче завис или прервался. Проверь, что уже сделано, продолжи и обязательно закончи DONE оркестратору.',
+        pending ? `\nТвой открытый вопрос (ответа пока нет - реши сам или спроси QUESTION ещё раз):\n${pending.text.slice(0, 2000)}` : '',
+      ].join('\n');
+      deliverAndWake(orchestrator, agent, body, { cardId: card.id, verify: true });
+      sent += 1;
+    }
+    refreshParent(b, card.parentId);
+    return b;
+  });
+  return { board, sent };
+}
+
 function moveCard(root, { id, columnId, beforeCardId }) {
   return update(root, (b) => {
     const card = b.cards.find((c) => c.id === id);
     if (!card) throw new KanbanError(tr('Карточка не найдена.'));
-    if (!columnById(b, columnId)) throw new KanbanError(tr('Столбец не найден.'));
+    const target = columnById(b, columnId);
+    if (!target) throw new KanbanError(tr('Столбец не найден.'));
+    // Перенос руками в другой столбец - задача для его агентов: готовое или застрявшее снова открыто, в «готово» - готово
+    if (card.columnId !== columnId) {
+      if (target.role === 'done') card.status = 'done';
+      else if (target.role !== 'check' && ['done', 'failed', 'needs_rework', 'needs_answer', 'stuck'].includes(card.status) && !(card.childIds && card.childIds.length)) {
+        card.status = 'open';
+        card.question = null;
+        card.reports = {};
+        card.wakeTries = 0;
+      }
+      refreshParent(b, card.parentId);
+    }
     card.columnId = columnId;
     card.updatedAt = Date.now();
     // Порядок внутри столбца: вынимаем и вставляем перед beforeCardId
@@ -870,6 +1133,11 @@ module.exports = {
   noteDispatcherDone,
   applyAgentReport,
   recordActivity,
+  reconcile,
+  noteQuestion,
+  noteAnswer,
+  answerCard,
+  wakeCard,
   saveColumn,
   deleteColumn,
   reorderColumns,
