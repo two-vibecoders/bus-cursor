@@ -5402,11 +5402,28 @@ function runMarkNode(mark) {
 // ---------- живой ход работающего агента (событие live) ----------
 
 const LIVE_SHORT = 8; // строк в свёрнутом блоке; раскрытый - всё, что прислал сервер
+const LIVE_STICK = 48; // «у низа»: новая строка - прокрутить к ней, а не сбрасывать в начало
+
+/** Блок прокрутки у низа или ещё пуст - после дописки строк держим свежий хвост на экране. */
+const nearBottom = (node, pad = LIVE_STICK) => {
+  if (!node || node.hidden) return true;
+  return node.scrollHeight - node.scrollTop - node.clientHeight < pad;
+};
+
+/** Прокрутить к свежим строкам после перерисовки (layout может догнать на следующем кадре). */
+function scrollLiveEnd(node) {
+  if (!node || node.hidden) return;
+  const go = () => { node.scrollTop = node.scrollHeight; };
+  go();
+  requestAnimationFrame(go);
+}
 
 /** Блок под отметкой «работает»: последние строки хода, тулы моноширинно. Раскрытие живёт в state.liveOpen - переживает перерисовку. */
 function fillLive(node, key) {
   const open = state.liveOpen.has(key);
   const lines = L.liveLines(state.live[key], open ? Infinity : LIVE_SHORT);
+  // До replaceChildren: у низа - остаёмся у хвоста; вручную ушёл вверх - не дёргаем
+  const stick = !node.dataset.key || nearBottom(node);
   node.dataset.key = key;
   node.classList.toggle('open', open);
   node.hidden = !lines.length;
@@ -5419,7 +5436,7 @@ function fillLive(node, key) {
       fillLive(node, key);
     };
   }
-  node.scrollTop = node.scrollHeight;
+  if (stick) scrollLiveEnd(node);
   return node;
 }
 
@@ -8995,6 +9012,11 @@ function kbRenderCardActivity(card) {
     box.replaceChildren();
     return;
   }
+  // До пересборки: куда был скролл и открыт ли блок - иначе каждая live-строка кидала бы в начало
+  const kept = new Map();
+  for (const body of box.querySelectorAll('.kb-act-body[data-key]')) {
+    kept.set(body.dataset.key, { top: body.scrollTop, stick: nearBottom(body), open: !body.hidden });
+  }
   // Чей ход показывать: исполнители карточки или её столбца, авторы отчётов и хода, и все, кто прямо сейчас работает по ней или по детям
   const owner = new Map(); // ключ агента → id карточки, в которой его будить
   const kids = (card.childIds || []).map((id) => kbCard(id)).filter(Boolean);
@@ -9006,6 +9028,7 @@ function kbRenderCardActivity(card) {
     for (const k of own) if (!owner.has(k) || c !== card) owner.set(k, c.id);
   }
   const panels = [];
+  const stickAfter = []; // живой ход / был у низа → после replaceChildren прокрутить к хвосту
   for (const [key, ownerId] of owner) {
     const agent = kbAgent(key);
     const liveNow = Boolean(agent.busy && agent.cardId && (agent.cardId === card.id || (card.childIds || []).includes(agent.cardId)));
@@ -9027,8 +9050,10 @@ function kbRenderCardActivity(card) {
     const ownerCard = kbCard(ownerId);
     const wakeable = Boolean(ownerCard && ownerCard.status !== 'done' && !(ownerCard.childIds && ownerCard.childIds.length) && agent.key);
     if (!lines.length && !report && !liveNow && !wakeable) continue;
-    const open = liveNow || Boolean(report);
+    const prev = kept.get(key);
+    const open = prev ? prev.open : (liveNow || Boolean(report));
     const body = el('div', { className: 'kb-act-body' });
+    body.dataset.key = key;
     body.hidden = !open;
     if (lines.length) {
       for (const row of lines.slice(-60)) {
@@ -9045,7 +9070,10 @@ function kbRenderCardActivity(card) {
       wakeable ? kbWakeButton(ownerId, key, agent.busy) : '',
       badge,
     );
-    const toggle = () => { body.hidden = !body.hidden; };
+    const toggle = () => {
+      body.hidden = !body.hidden;
+      if (!body.hidden) scrollLiveEnd(body);
+    };
     head.addEventListener('click', (e) => { if (!e.target.closest('.kb-act-wake')) toggle(); });
     head.addEventListener('keydown', (e) => {
       if ((e.key === 'Enter' || e.key === ' ') && e.target === head) {
@@ -9053,6 +9081,9 @@ function kbRenderCardActivity(card) {
         toggle();
       }
     });
+    // Живой ход или уже смотрел хвост - к новым строкам; иначе вернуть прежний scrollTop после вставки в DOM
+    if (liveNow || !prev || prev.stick) stickAfter.push(body);
+    else stickAfter.push({ node: body, top: prev.top });
     panels.push(el('div', { className: 'kb-act' }, head, body));
   }
   // Ссылки на дочерние карточки
@@ -9060,6 +9091,7 @@ function kbRenderCardActivity(card) {
     const kids = el('div', { className: 'kb-act' });
     kids.append(el('div', { className: 'kb-act-head', style: 'cursor:default' }, document.createTextNode(tr('Дочерние задачи'))));
     const list = el('div', { className: 'kb-act-body' });
+    list.dataset.key = '__kids__';
     for (const id of card.childIds) {
       const child = kbCard(id);
       if (!child) continue;
@@ -9067,11 +9099,17 @@ function kbRenderCardActivity(card) {
       btn.addEventListener('click', () => kbOpenCard(child));
       list.append(btn);
     }
+    const prevKids = kept.get('__kids__');
+    if (prevKids) stickAfter.push({ node: list, top: prevKids.top });
     kids.append(list);
     panels.unshift(kids);
   }
   wrap.hidden = !panels.length;
   box.replaceChildren(...panels);
+  for (const item of stickAfter) {
+    if (item && item.node) item.node.scrollTop = item.top;
+    else scrollLiveEnd(item);
+  }
 }
 
 /** Кнопка подъёма в панели агента: работает - снять зависший запуск и отдать задачу заново, нет - просто отдать и поднять. */
