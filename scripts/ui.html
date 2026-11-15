@@ -822,6 +822,49 @@
   .dialog-history .iconbtn { width: var(--h-sm); }
   .dialog-history .danger:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); box-shadow: 0 1px 0 var(--edge) inset, 0 0 16px -6px color-mix(in srgb, var(--danger) 60%, transparent); }
 
+  /* Закрепы: плашка над лентой, как в Telegram */
+  .pin-bar {
+    display: flex; align-items: center; gap: 8px; width: 100%; margin: 0; padding: 8px var(--gutter);
+    border: 0; border-bottom: 1px solid var(--line); background: var(--glass-2);
+    color: var(--ink); font: 500 13px/1.35 var(--body); text-align: left; cursor: pointer;
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  }
+  .pin-bar[hidden] { display: none !important; }
+  .pin-bar:hover { background: var(--glass-3); color: var(--copper); }
+  .pin-bar .icon { width: 16px; height: 16px; flex: none; color: var(--copper); }
+  .pin-bar-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pin-bar-count {
+    flex: none; font: 600 11px/1 var(--mono); color: var(--ink-soft);
+    padding: 3px 7px; border-radius: 999px; border: 1px solid var(--line); background: var(--glass-1);
+  }
+  .msg.pinned { box-shadow: inset 2px 0 0 var(--copper); }
+  .msg.pinned-flash { animation: pin-flash .9s var(--ease); }
+  @keyframes pin-flash {
+    0%, 100% { background: transparent; }
+    30% { background: color-mix(in srgb, var(--copper) 14%, transparent); }
+  }
+  .msg-menu {
+    position: fixed; z-index: 80; min-width: 180px; padding: 4px;
+    border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--panel);
+    box-shadow: var(--shadow-pop); display: grid; gap: 2px;
+  }
+  .msg-menu[hidden] { display: none !important; }
+  .msg-menu button {
+    display: flex; align-items: center; gap: 8px; width: 100%; margin: 0; padding: 8px 10px;
+    border: 0; border-radius: calc(var(--r) - 2px); background: none; color: var(--ink);
+    font: 500 13px var(--body); text-align: left; cursor: pointer;
+  }
+  .msg-menu button:hover { background: var(--tap); }
+  .msg-menu button.danger { color: var(--danger); }
+  .msg-menu button.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+  .msg-menu .icon { width: 15px; height: 15px; }
+
+  .deploy-grid { display: grid; grid-template-columns: 1fr 88px; gap: 10px 12px; }
+  .deploy-grid label.wide, .deploy-grid > .wide { grid-column: 1 / -1; }
+  .deploy-grid label { display: grid; gap: 4px; min-width: 0; }
+  .deploy-grid input { width: 100%; }
+  @media (max-width: 560px) { .deploy-grid { grid-template-columns: 1fr 1fr; } }
+
   /* ---- панель пары: сколько весит диалог и итог сжатия ---- */
   /* Пара: сообщений (после сжатия) · сколько прочтёт агент и токены · «Сжать» с часами «сжимать рано». Цифры с иконками, полная фраза - в подсказке у #pairWeight */
   .pair .weight { display: contents; }
@@ -3593,6 +3636,7 @@
   <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.5-4.5"/></symbol>
   <symbol id="i-clip" viewBox="0 0 24 24"><path d="m21.4 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></symbol>
   <symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></symbol>
   <symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
@@ -3690,8 +3734,18 @@
     <div class="tabs" id="dialogTabs" role="tablist" aria-label="Диалоги с агентом" hidden></div>
     <!-- Часы у «+» - закрытые «×» диалоги: открыть или стереть; рисует renderHistory -->
     <div class="dialog-history" id="dialogHistory" hidden></div>
+    <!-- Закрепы проекта: клик крутит по ним, как в Telegram -->
+    <button type="button" class="pin-bar" id="pinBar" hidden aria-label="Перейти к закрепу">
+      <svg class="icon"><use href="#i-pin"/></svg>
+      <span class="pin-bar-text" id="pinBarText"></span>
+      <span class="pin-bar-count" id="pinBarCount" hidden></span>
+    </button>
     </div>
     <div class="feed-wrap" id="wrap"><ol class="feed" id="feed" aria-live="polite"></ol></div>
+    <div class="msg-menu" id="msgMenu" hidden role="menu">
+      <button type="button" role="menuitem" id="msgMenuPin"><svg class="icon"><use href="#i-pin"/></svg><span id="msgMenuPinLabel">Закрепить</span></button>
+      <button type="button" role="menuitem" id="msgMenuDelete" class="danger"><svg class="icon"><use href="#i-trash"/></svg><span>Удалить</span></button>
+    </div>
     <div class="composer-dock" id="composerDock">
     <div class="live-bar" id="liveBar" hidden role="status" aria-live="polite" aria-label="Думает…"></div>
     <form id="composer">
@@ -4060,6 +4114,28 @@
       <p class="hint" id="agentBriefHint">ИИ соберёт общее описание в промпт ниже. При сохранении оно уйдёт и всем агентам проекта - чтобы держали одну картину мира.</p>
     </fieldset>
 
+    <fieldset class="role-ai" id="agentDeploy" hidden>
+      <legend class="label">Выгрузка на сервер</legend>
+      <p class="hint">Реквизиты только локально в проекте (`.cursor/bus-cursor/deploy.json`), в git не попадают. Пароль в роль агента не пишется.</p>
+      <div class="deploy-grid">
+        <label><span class="label">SSH хост</span><input id="deploySshHost" type="text" maxlength="200" autocomplete="off" placeholder="example.com"></label>
+        <label><span class="label">Порт</span><input id="deploySshPort" type="number" min="1" max="65535" value="22"></label>
+        <label><span class="label">Логин</span><input id="deploySshUser" type="text" maxlength="120" autocomplete="off"></label>
+        <label><span class="label">Пароль SSH<small>пусто - не менять</small></span><input id="deploySshPass" type="password" maxlength="500" autocomplete="new-password" placeholder="••••"></label>
+        <label class="wide"><span class="label">Или путь к ключу</span><input id="deploySshKey" type="text" maxlength="500" autocomplete="off" placeholder="C:\Users\…\.ssh\id_ed25519"></label>
+      </div>
+      <label class="check wide"><input type="checkbox" id="deployFtpOn"><span>Ещё FTP</span></label>
+      <div class="deploy-grid" id="deployFtpFields" hidden>
+        <label><span class="label">FTP хост</span><input id="deployFtpHost" type="text" maxlength="200" autocomplete="off"></label>
+        <label><span class="label">Порт</span><input id="deployFtpPort" type="number" min="1" max="65535" value="21"></label>
+        <label><span class="label">Логин</span><input id="deployFtpUser" type="text" maxlength="120" autocomplete="off"></label>
+        <label><span class="label">Пароль FTP<small>пусто - не менять</small></span><input id="deployFtpPass" type="password" maxlength="500" autocomplete="new-password" placeholder="••••"></label>
+      </div>
+      <label class="wide" id="deployAgentWrap"><span class="label">Агент выгрузки<small>сначала выбери - потом «напрямую»</small></span><select id="deployAgent"></select></label>
+      <label class="check wide"><input type="checkbox" id="deployDirect"><span>Выгрузка напрямую<small>обход VPN: правило уйдёт выбранному агенту</small></span></label>
+      <p class="hint" id="deployHint">Список агентов проекта всегда виден. Включи «напрямую» после выбора: в роль агента допишется блок выгрузки (без паролей). На Windows он поставит host-route `/32` через физический шлюз, VPN целиком не отключая.</p>
+    </fieldset>
+
     <label class="wide" id="agentPromptPickWrap"><span class="label">Взять промпт<small>из другого проекта или агента</small></span><select id="agentPromptPick"><option value="">—</option></select></label>
     <label class="wide"><span class="label" id="agentBodyRole">Роль<small>зона ответственности, правила работы</small></span><span class="label" id="agentBodyBoss" hidden>Промпт проекта<small>дописывается к общему; сессия получает его хуком sessionStart</small></span><textarea id="agentBody" required spellcheck="false"></textarea></label>
     <details id="agentCommonWrap" hidden><summary class="label">Общий промпт всех оркестраторов - правится в шестерёнке</summary><pre class="role-bus" id="agentCommon"></pre></details>
@@ -4366,7 +4442,9 @@ function icon(name) {
   return svg;
 }
 
-const state = { agents: [], here: {}, types: [], maxFiles: 10, maxFileBytes: 30 * 1024 * 1024, messages: new Map(), summaries: new Map(), dialogs: new Map(), closed: {}, hues: new Map(), schedule: null, kanban: null, access: { servers: [], weights: null }, cursorModels: [], live: {}, liveOpen: new Set() };
+const state = { agents: [], here: {}, types: [], maxFiles: 10, maxFileBytes: 30 * 1024 * 1024, messages: new Map(), summaries: new Map(), dialogs: new Map(), closed: {}, hues: new Map(), schedule: null, kanban: null, access: { servers: [], weights: null }, cursorModels: [], live: {}, liveOpen: new Set(), pins: [] };
+let pinCursor = -1; // индекс в state.pins для кругового перехода плашкой
+let msgMenuId = ''; // сообщение под контекстным меню
 let picked = []; // загруженные, но ещё не отправленные вложения: { id, name, size }
 let showCovered = false; // в режиме пары: раскрыты ли сообщения, которые уже ушли в сводку
 const filters = { agents: new Set(), types: new Set(), q: '', dialog: null, day: null }; // dialog - открытая вкладка { pair, d }; day - YYYY-MM-DD
@@ -5367,8 +5445,120 @@ function messageNode(m, { fresh, unread, covered, cont, me }) {
   });
   node.dataset.id = m.id;
   node.style.setProperty('--hue', hueOf(m.from, m.fromKind));
+  if (state.pins.includes(m.id)) node.classList.add('pinned');
+  node.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    openMsgMenu(m.id, e.clientX, e.clientY);
+  });
   return node;
 }
+
+// ---------- закрепы (локально на проект) ----------
+
+function setPins(ids) {
+  state.pins = Array.isArray(ids) ? [...new Set(ids.map(String).filter(Boolean))] : [];
+  if (pinCursor >= state.pins.length) pinCursor = state.pins.length - 1;
+  renderPinBar();
+}
+
+function pinPreview(id) {
+  const m = state.messages.get(id);
+  if (!m) return tr('Сообщение не в ленте');
+  const who = m.from || '?';
+  const text = String(m.text || '').replace(/\s+/g, ' ').trim();
+  const short = text.length > 90 ? `${text.slice(0, 89)}…` : text;
+  return short ? `${who}: ${short}` : who;
+}
+
+function renderPinBar() {
+  const bar = $('pinBar');
+  if (!bar) return;
+  const ids = state.pins.filter((id) => state.messages.has(id));
+  bar.hidden = !ids.length;
+  if (!ids.length) return;
+  if (pinCursor < 0 || pinCursor >= ids.length) pinCursor = 0;
+  const id = ids[pinCursor] || ids[0];
+  $('pinBarText').textContent = pinPreview(id);
+  const count = $('pinBarCount');
+  count.hidden = ids.length < 2;
+  count.textContent = `${pinCursor + 1}/${ids.length}`;
+}
+
+function jumpToPin(id) {
+  const node = $('feed').querySelector(`.msg[data-id="${CSS.escape(id)}"]`);
+  if (!node) {
+    say(tr('Закреп не в текущем виде ленты - сними фильтры или открой нужный диалог.'), true);
+    return;
+  }
+  node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  node.classList.remove('pinned-flash');
+  void node.offsetWidth;
+  node.classList.add('pinned-flash');
+}
+
+$('pinBar').addEventListener('click', () => {
+  const ids = state.pins.filter((id) => state.messages.has(id));
+  if (!ids.length) return;
+  pinCursor = (pinCursor + 1) % ids.length;
+  renderPinBar();
+  jumpToPin(ids[pinCursor]);
+});
+
+function openMsgMenu(id, x, y) {
+  msgMenuId = id;
+  const menu = $('msgMenu');
+  const pinned = state.pins.includes(id);
+  $('msgMenuPinLabel').textContent = pinned ? tr('Открепить') : tr('Закрепить');
+  menu.hidden = false;
+  const pad = 8;
+  const w = menu.offsetWidth || 180;
+  const h = menu.offsetHeight || 80;
+  menu.style.left = `${Math.min(x, window.innerWidth - w - pad)}px`;
+  menu.style.top = `${Math.min(y, window.innerHeight - h - pad)}px`;
+}
+
+function closeMsgMenu() {
+  $('msgMenu').hidden = true;
+  msgMenuId = '';
+}
+
+document.addEventListener('click', (e) => {
+  if (!$('msgMenu').hidden && !e.target.closest('#msgMenu')) closeMsgMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('msgMenu').hidden) closeMsgMenu();
+});
+window.addEventListener('resize', () => { if (!$('msgMenu').hidden) closeMsgMenu(); });
+window.addEventListener('scroll', () => { if (!$('msgMenu').hidden) closeMsgMenu(); }, true);
+
+$('msgMenuPin').addEventListener('click', async () => {
+  const id = msgMenuId;
+  closeMsgMenu();
+  if (!id) return;
+  try {
+    const r = await post('/api/pin', { id });
+    setPins(r.ids);
+    renderFeed(new Set(), false);
+    say(r.pinned ? tr('Сообщение закреплено.') : tr('Сообщение откреплено.'));
+  } catch (err) {
+    say(err.message, true);
+  }
+});
+
+$('msgMenuDelete').addEventListener('click', async () => {
+  const id = msgMenuId;
+  closeMsgMenu();
+  if (!id || !await askConfirm(tr('Удалить это сообщение из журнала? Вернуть нельзя.'), { danger: true })) return;
+  try {
+    const r = await post('/api/delete', { ids: [id] });
+    marked.delete(id);
+    renderMarked();
+    if (r.pins) setPins(r.pins);
+    say(tr('Удалено сообщений: {n}.', { n: r.removed }));
+  } catch (err) {
+    say(tr('Не удалено: {why}', { why: err.message }), true);
+  }
+});
 
 /** Отметка запуска под сообщением: часы тикают сами (tickClocks), кнопка - стоп работающему или продолжение остановленному. */
 function runMarkNode(mark) {
@@ -5670,6 +5860,7 @@ function renderFeed(freshIds = new Set(), jump = true) {
   // Читает старое, а внизу появилось новое - не дёргаем ленту, а даём кнопку
   if (jump || stick) $('toBottom').hidden = true;
   else if ([...freshIds].some((id) => shown.some((m) => m.id === id))) $('toBottom').hidden = false;
+  renderPinBar();
 }
 
 /**
@@ -5918,6 +6109,7 @@ function dropWorkspaceView() {
   state.summaries = new Map();
   state.dialogs = new Map();
   state.closed = {};
+  setPins([]);
   lastId = '';
   feedLoaded = false;
   closeDayCal();
@@ -6186,6 +6378,7 @@ function replaceFeed(data, late = []) {
   state.closed = shut;
   state.messages = new Map();
   lastId = '';
+  setPins(data.pins || []);
   applyMessages([...(data.messages || []), ...late], false, !feedLoaded);
   feedLoaded = true;
 }
@@ -6492,7 +6685,7 @@ function fillOrchestratorMode(role) {
   const boss = Boolean(role && role.orchestrator);
   agentPanel.orchestrator = boss;
   for (const id of ['agentNameLabel', 'agentAboutLabel', 'agentAccess', 'agentBodyRole', 'agentCursorModelLabel', 'agentCursorNote']) $(id).hidden = boss;
-  for (const id of ['agentBodyBoss', 'agentBossNote', 'agentBrief']) $(id).hidden = !boss;
+  for (const id of ['agentBodyBoss', 'agentBossNote', 'agentBrief', 'agentDeploy']) $(id).hidden = !boss;
   // model / effort / fast / CLAUDE.md - наследие Claude Code; в Bus Cursor оркестратору не задаём
   for (const id of ['agentModelLabel', 'agentEffortLabel', 'agentFastLabel', 'agentFastBoss', 'agentRulesLabel']) $(id).hidden = true;
   $('agentFastRole').hidden = false;
@@ -6500,7 +6693,83 @@ function fillOrchestratorMode(role) {
   $('agentCommonWrap').hidden = !boss || !(role && role.common && role.common.prompt);
   $('agentCommonWrap').open = false;
   $('agentCommon').textContent = boss && role.common ? role.common.prompt : '';
+  if (boss) fillDeployForm(role);
+  else clearDeployForm();
 }
+
+/** Форма выгрузки в карандаше оркестратора. */
+function fillDeployForm(role) {
+  const d = (role && role.deploy) || {};
+  const ssh = d.ssh || {};
+  const ftp = d.ftp || {};
+  $('deploySshHost').value = ssh.host || '';
+  $('deploySshPort').value = ssh.port || 22;
+  $('deploySshUser').value = ssh.user || '';
+  $('deploySshPass').value = '';
+  $('deploySshPass').placeholder = ssh.hasPassword ? '••••' : '';
+  $('deploySshKey').value = ssh.keyPath || '';
+  $('deployFtpOn').checked = Boolean(ftp.enabled);
+  $('deployFtpFields').hidden = !$('deployFtpOn').checked;
+  $('deployFtpHost').value = ftp.host || '';
+  $('deployFtpPort').value = ftp.port || 21;
+  $('deployFtpUser').value = ftp.user || '';
+  $('deployFtpPass').value = '';
+  $('deployFtpPass').placeholder = ftp.hasPassword ? '••••' : '';
+  $('deployDirect').checked = Boolean(d.direct);
+  const agents = Array.isArray(role && role.deployAgents) ? role.deployAgents : [];
+  setOptions($('deployAgent'), [
+    el('option', { value: '' }, tr('Выбери агента…')),
+    ...agents.map((a) => el('option', { value: a.key }, a.kind === 'global' ? `${a.name} · ${tr('глобальный')}` : a.name)),
+  ]);
+  $('deployAgent').value = d.agentKey && agents.some((a) => a.key === d.agentKey) ? d.agentKey : '';
+  if (!$('deployAgent').value) $('deployDirect').checked = false;
+}
+
+function clearDeployForm() {
+  for (const id of ['deploySshHost', 'deploySshUser', 'deploySshPass', 'deploySshKey', 'deployFtpHost', 'deployFtpUser', 'deployFtpPass']) $(id).value = '';
+  $('deploySshPort').value = 22;
+  $('deployFtpPort').value = 21;
+  $('deployFtpOn').checked = false;
+  $('deployFtpFields').hidden = true;
+  $('deployDirect').checked = false;
+  setOptions($('deployAgent'), [el('option', { value: '' }, tr('Выбери агента…'))]);
+}
+
+function collectDeployFields() {
+  const ftpOn = $('deployFtpOn').checked;
+  return {
+    direct: $('deployDirect').checked,
+    agentKey: $('deployAgent').value || '',
+    ssh: {
+      host: $('deploySshHost').value.trim(),
+      port: Number($('deploySshPort').value) || 22,
+      user: $('deploySshUser').value.trim(),
+      password: $('deploySshPass').value,
+      keyPath: $('deploySshKey').value.trim(),
+    },
+    ftp: {
+      enabled: ftpOn,
+      host: $('deployFtpHost').value.trim(),
+      port: Number($('deployFtpPort').value) || 21,
+      user: $('deployFtpUser').value.trim(),
+      password: $('deployFtpPass').value,
+    },
+  };
+}
+
+$('deployFtpOn').addEventListener('change', () => {
+  $('deployFtpFields').hidden = !$('deployFtpOn').checked;
+});
+$('deployDirect').addEventListener('change', () => {
+  if ($('deployDirect').checked && !$('deployAgent').value) {
+    $('deployDirect').checked = false;
+    $('deployAgent').focus();
+    say(tr('Сначала выбери агента выгрузки - потом включай «напрямую».'), true);
+  }
+});
+$('deployAgent').addEventListener('change', () => {
+  if (!$('deployAgent').value) $('deployDirect').checked = false;
+});
 
 /** Список моделей Cursor из /api/state или /api/cursor-models; выбранная, которой нет в списке, дописывается. */
 function fillCursorModels(selected) {
@@ -6861,6 +7130,7 @@ $('agentForm').addEventListener('submit', async (e) => {
       body: $('agentBody').value,
       theme: $('agentBriefTheme').value,
       design: $('agentBriefDesign').value,
+      deploy: collectDeployFields(),
     }
     : { description: $('agentAbout').value, model: '', effort: '', fast: false, rules: false, body: $('agentBody').value, runtime: 'cursor', cursorModel: $('agentCursorModel').value.trim() };
   // Роль с рукописной tools, которую на галочки не переводили, доступ не шлёт - сервер строку не тронет. У оркестратора доступа в форме нет
@@ -7323,7 +7593,10 @@ async function destroy(path, body, done) {
 
 $('markedDelete').addEventListener('click', async () => {
   if (!marked.size || !await askConfirm(tr('Удалить выделенные сообщения ({n}) из журнала? Вернуть нельзя.', { n: marked.size }), { danger: true })) return;
-  destroy('/api/delete', { ids: [...marked] }, (r) => tr('Удалено сообщений: {n}.', { n: r.removed }));
+  destroy('/api/delete', { ids: [...marked] }, (r) => {
+    if (r.pins) setPins(r.pins);
+    return tr('Удалено сообщений: {n}.', { n: r.removed });
+  });
 });
 $('markedNone').addEventListener('click', () => {
   marked.clear();

@@ -503,7 +503,13 @@ function statePayload(hereRoot) {
     const pair = String(thread).split('#')[0];
     if (pairInHere(pair, root)) shut[thread] = at;
   }
-  return { messages: msgs, summaries: sums, dialogs: dias, closed: shut };
+  let pinIds = [];
+  try {
+    if (root) pinIds = pins().load(root);
+  } catch {
+    pinIds = [];
+  }
+  return { messages: msgs, summaries: sums, dialogs: dias, closed: shut, pins: pinIds };
 }
 const freshId = (f) => (f.summary ? f.summary.id : f.dialog ? f.dialog.id : f.id);
 const knownIds = () => new Set([...messages.keys(), ...[...summaries.values(), ...dialogs.values()].map((x) => x.id)]);
@@ -601,12 +607,14 @@ function tick(rebuild = false) {
 
 const scheduler = () => require('./scheduler.js'); // грузится, только когда открыли панель расписания или идёт опрос
 const kanban = () => require('./kanban.js');
+const pins = () => require('./pins.js');
+const deploy = () => require('./deploy.js');
 
 let kanbanSignature = '';
 let kanbanScanTimer = null;
 
 // Страница читается с диска на каждый запрос, а модули - один раз при старте: после обновления скилла новая страница говорит со старым сервером
-const CODE_FILES = ['ui.js', 'kanban.js', 'bus.js', 'wake.js', 'cursor.js'].map((f) => path.join(__dirname, f));
+const CODE_FILES = ['ui.js', 'kanban.js', 'bus.js', 'wake.js', 'cursor.js', 'pins.js', 'deploy.js'].map((f) => path.join(__dirname, f));
 const codeStamp = () => Math.max(...CODE_FILES.map((f) => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } }));
 const CODE_AT_START = codeStamp();
 const codeStale = () => codeStamp() > CODE_AT_START + 1000;
@@ -1771,10 +1779,20 @@ function deleteMessages({ ids }) {
   if (!wanted.size) throw new bus.BusError(tr('Не выбрано ни одного сообщения.'));
   if (summarizing) throw new bus.BusError(tr('Идёт сжатие диалога - дождись сводки, потом удаляй.'));
   if (wanted.size > DELETE_LIMIT) throw new bus.BusError(tr('За раз - не больше {n} сообщений.', { n: DELETE_LIMIT }));
-  const removed = purge(tick() || collectAgents(), (r) => r.kind !== 'summary' && wanted.has(r.id));
+  const snapshot = tick() || collectAgents();
+  const removed = purge(snapshot, (r) => r.kind !== 'summary' && wanted.has(r.id));
   if (!removed) throw new bus.BusError(tr('Этих сообщений в журналах уже нет.'));
+  const root = snapshot.here && snapshot.here.root;
+  let pinIds = [];
+  if (root) {
+    try {
+      pinIds = pins().prune(root, new Set(messages.keys()));
+    } catch {
+      pinIds = pins().load(root);
+    }
+  }
   bus.auditNote(`ui delete | сообщений: ${removed}`);
-  return { ok: true, removed };
+  return { ok: true, removed, pins: pinIds };
 }
 
 // ---------- диалоги пользователя с агентом ----------
@@ -1953,6 +1971,10 @@ function orchestratorEntry(key, snapshot) {
 function orchestratorRole(agent) {
   const values = settings.get(agent.root);
   const common = { prompt: values['orchestrator.prompt'] };
+  const snapshot = collectAgents();
+  const deployAgents = snapshot.agents
+    .filter((a) => a.registered && a.alive && a.editable && (a.kind === 'local' && a.root === agent.root || a.kind === 'global'))
+    .map((a) => ({ key: a.key, name: a.name, kind: a.kind }));
   return {
     orchestrator: true, key: agent.key, name: agent.name, kind: agent.kind, registered: true, deletable: false,
     where: 'sessionStart → ~/.cursor/hooks.json',
@@ -1962,6 +1984,8 @@ function orchestratorRole(agent) {
       design: values['project.design'] || '',
     },
     common,
+    deploy: deploy().forPage(deploy().load(agent.root)),
+    deployAgents,
   };
 }
 
@@ -1985,10 +2009,26 @@ function saveOrchestrator(agent, body) {
     if (!(e instanceof settings.SettingsError)) throw e;
     throw new bus.BusError(e.message);
   }
+  let deployPage = null;
+  if (body.deploy && typeof body.deploy === 'object') {
+    try {
+      const snapshot = collectAgents();
+      const resolveFile = (key) => {
+        try {
+          return roleOf(key, snapshot).file;
+        } catch {
+          return null;
+        }
+      };
+      deployPage = deploy().save(agent.root, body.deploy, { resolveFile }).page;
+    } catch (e) {
+      throw new bus.BusError(e.message);
+    }
+  }
   bus.applyOrchestrator(agent.root, 'orchestrator.projectPrompt');
   bus.auditNote(`ui orchestrator save | ${agent.key}`);
   safeTick();
-  return { ok: true, key: agent.key, file: 'sessionStart → ~/.cursor/hooks.json', warnings: [] };
+  return { ok: true, key: agent.key, file: 'sessionStart → ~/.cursor/hooks.json', warnings: [], deploy: deployPage };
 }
 
 /**
@@ -2482,6 +2522,14 @@ async function handle(req, res, port) {
     if (url.pathname === '/api/open') return reply(res, 200, openExternal(body.url));
     if (url.pathname === '/api/settings') return reply(res, 200, saveSettings(body));
     if (url.pathname === '/api/delete') return reply(res, 200, deleteMessages(body));
+    if (url.pathname === '/api/pin') {
+      const snapshot = collectAgents();
+      const root = snapshot.here.root;
+      if (!root) throw new bus.BusError(tr('Закрепы - только в каталоге проекта шины.'));
+      const result = pins().toggle(root, body.id);
+      bus.auditNote(`ui pin | ${body.id} | ${result.pinned ? 'on' : 'off'}`);
+      return reply(res, 200, { ok: true, ...result });
+    }
     if (url.pathname === '/api/dialog/new') return reply(res, 200, newDialog(body));
     if (url.pathname === '/api/dialog/close') return reply(res, 200, closeDialog(body));
     if (url.pathname === '/api/dialog/reopen') return reply(res, 200, reopenDialog(body));
