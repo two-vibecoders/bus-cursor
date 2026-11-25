@@ -1224,6 +1224,75 @@ function safeTick() {
   }
 }
 
+/**
+ * Снять всех фоновых агентов шины (wake.js run + дерево agent/claude).
+ * Раннеры detached - без этого переживают закрытие окна UI.
+ * Демон расписания (pm2) не трогаем: он отдельно от окна и нужен крону.
+ * → сколько реально остановили.
+ */
+function stopAllWakes(by = 'Bus Cursor') {
+  const boxes = new Set();
+  for (const box of runningBoxes.values()) {
+    if (box) boxes.add(box);
+  }
+  try {
+    const globals = bus.loadRegistry(bus.REGISTRY);
+    const plain = bus.contextOf(null, globals);
+    for (const name of Object.keys(globals)) {
+      const agent = bus.describe(plain, name);
+      if (!agent) continue;
+      if (bus.isSubagent(agent) && agent.box) boxes.add(agent.box);
+      if (agent.kind !== 'project' || !agent.root || !fs.existsSync(agent.root)) continue;
+      const ctx = bus.contextOf(agent.root, globals);
+      for (const local of Object.keys(ctx.locals)) {
+        const sub = bus.describe(ctx, local);
+        if (sub && bus.isSubagent(sub) && sub.box) boxes.add(sub.box);
+      }
+      // Лок без записи в реестре (сбой enroll) - всё равно снять
+      const base = projectBus(agent.root);
+      if (!fs.existsSync(base)) continue;
+      for (const ent of fs.readdirSync(base, { withFileTypes: true })) {
+        if (!ent.isDirectory()) continue;
+        const box = path.join(base, ent.name);
+        if (fs.existsSync(path.join(box, 'wake.lock'))) boxes.add(box);
+      }
+    }
+    // Глобальные ящики ~/.cursor/bus-cursor/<имя>/
+    if (fs.existsSync(bus.BUS)) {
+      for (const ent of fs.readdirSync(bus.BUS, { withFileTypes: true })) {
+        if (!ent.isDirectory()) continue;
+        const box = path.join(bus.BUS, ent.name);
+        if (fs.existsSync(path.join(box, 'wake.lock'))) boxes.add(box);
+      }
+    }
+  } catch (e) {
+    console.error(`сборка ящиков при выходе: ${e.message}`);
+  }
+
+  let stopped = 0;
+  for (const box of boxes) {
+    try {
+      if (!wake.running(box)) continue;
+      const r = wake.stop(box, by);
+      if (r.state === 'stopped') stopped += 1;
+    } catch (e) {
+      console.error(`остановка ${box}: ${e.message}`);
+    }
+  }
+  if (stopped) console.log(`при выходе остановлено фоновых агентов: ${stopped}`);
+  return stopped;
+}
+
+/** Выход UI: сначала раннеры, потом process.exit. */
+function exitUi(code = 0) {
+  try {
+    stopAllWakes('Bus Cursor');
+  } catch (e) {
+    console.error(`выход: ${e.message}`);
+  }
+  process.exit(code);
+}
+
 /** Опрос идёт, только пока открыта хоть одна вкладка; без вкладок сервер гасит себя сам. */
 function updateTimers() {
   if (restarting) return;
@@ -1237,7 +1306,7 @@ function updateTimers() {
     const ms = appMode && appSeen
       ? (quitRequested ? APP_QUIT_MS : APP_IDLE_MS)
       : IDLE_EXIT_MS;
-    idleTimer = setTimeout(() => process.exit(0), ms);
+    idleTimer = setTimeout(() => exitUi(0), ms);
   }
   // quitRequested сбрасывает только новый subscribe - иначе pagehide /api/quit при живом SSE сам себя отменял
 }
@@ -2587,6 +2656,7 @@ async function handle(req, res, port) {
     if (url.pathname === '/api/quit') {
       // Окно --app закрывают крестиком (pagehide) или повторный ярлык застал процесс без клиентов
       quitRequested = true;
+      stopAllWakes('Bus Cursor'); // detached-раннеры иначе остаются после закрытия окна
       updateTimers();
       return reply(res, 200, { ok: true });
     }
@@ -2736,7 +2806,7 @@ async function start(args = []) {
     fs.rmSync(UPLOAD_DIR, { recursive: true, force: true });
     forgetServer();
   });
-  for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(signal, () => process.exit(0));
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(signal, () => exitUi(0));
   sweepUploads();
 
   for (let port = wanted; port < wanted + PORT_TRIES; port++) {
@@ -2803,6 +2873,7 @@ async function start(args = []) {
  * иначе ответ лежал бы до ручного «Поднять» или следующего сообщения. Только агенты проектов: cwd глобального здесь не угадать.
  */
 function sweepWakes() {
+  if (quitRequested || restarting) return; // окно закрывают - новых подъёмов не стартуем
   try {
     const globals = bus.loadRegistry(bus.REGISTRY);
     const plain = bus.contextOf(null, globals);
