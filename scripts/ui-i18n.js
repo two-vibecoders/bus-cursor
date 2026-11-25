@@ -531,6 +531,7 @@
     'Не удалось открыть вход: {why}': 'Could not open login: {why}',
     'Cursor CLI не залогинен. Нажми «Восстановить соединение» или в PowerShell: agent login.': 'Cursor CLI is not logged in. Press “Restore connection” or in PowerShell: agent login.',
     'Нет JWT Cursor: IDE шифрует токен (cursor-safe-storage). Снимок из кэша, возраст не сбросится - открой Cursor или задай CURSOR_API_KEY.': 'No Cursor JWT: the IDE encrypts the token (cursor-safe-storage). Cached snapshot kept, age will not reset - open Cursor or set CURSOR_API_KEY.',
+    'Нет доступа к лимитам: IDE шифрует токен. Войди в Cursor CLI («Восстановить соединение» / agent login) - лимиты возьмутся оттуда. CURSOR_API_KEY нужен только для CI.': 'No access to limits: the IDE encrypts the token. Sign in to Cursor CLI (“Restore connection” / agent login) - limits will use that. CURSOR_API_KEY is only for CI.',
     'Лимиты обновлены': 'Limits updated',
     'Лимиты не обновились: {why}': 'Limits were not updated: {why}',
     'Обновить лимиты сейчас': 'Refresh limits now',

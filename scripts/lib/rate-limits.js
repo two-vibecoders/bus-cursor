@@ -46,8 +46,8 @@ function looksLikeJwt(token) {
   return parts.length === 3 && parts.every((p) => p.length > 0);
 }
 
-/** JWT из локальной БД Cursor. Нет БД / нет токена / шифротекст / нет node:sqlite - null. */
-function readAccessToken(env = process.env) {
+/** JWT из state.vscdb IDE. С Cursor ~3.27 часто cursor-safe-storage (не JWT) - тогда null. */
+function readIdeAccessToken(env = process.env) {
   const file = stateDbPath(env);
   if (!fs.existsSync(file)) return null;
   try {
@@ -63,6 +63,76 @@ function readAccessToken(env = process.env) {
   } catch {
     return null;
   }
+}
+
+function cursorRoamingDir(env = process.env) {
+  const home = env.HOME || env.USERPROFILE || os.homedir();
+  if (process.platform === 'darwin') return path.join(home, 'Library', 'Application Support', 'Cursor');
+  if (process.platform === 'linux') return path.join(env.XDG_CONFIG_HOME || path.join(home, '.config'), 'Cursor');
+  return path.join(env.APPDATA || path.join(home, 'AppData', 'Roaming'), 'Cursor');
+}
+
+/**
+ * Windows: %APPDATA%\\Cursor\\auth.dpapi после `agent login` -
+ * JSON { version, dpapi: base64(CryptProtectData(utf8 JSON { accessToken, refreshToken })) }.
+ */
+function readWinCliDpapiToken(file) {
+  if (!file || !fs.existsSync(file)) return null;
+  const { spawnSync } = require('child_process');
+  const script = [
+    'Add-Type -AssemblyName System.Security',
+    '$wrap = Get-Content -LiteralPath $env:BUS_AUTH_DPAPI -Raw | ConvertFrom-Json',
+    '$blob = [Convert]::FromBase64String($wrap.dpapi)',
+    '$plain = [Security.Cryptography.ProtectedData]::Unprotect($blob, $null, \'CurrentUser\')',
+    '[Console]::Out.Write([Text.Encoding]::UTF8.GetString($plain))',
+  ].join('; ');
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 15000,
+    env: { ...process.env, BUS_AUTH_DPAPI: file },
+  });
+  if (r.status !== 0) return null;
+  try {
+    const data = JSON.parse(String(r.stdout || '').trim());
+    const token = data && typeof data.accessToken === 'string' ? data.accessToken.trim() : '';
+    return looksLikeJwt(token) ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * JWT Cursor CLI после `agent login` (не путать с зашифрованным токеном IDE).
+ * Windows - auth.dpapi; иначе / плюс - auth.json с accessToken, если лежит открытым.
+ */
+function readCliAccessToken(env = process.env) {
+  const roaming = cursorRoamingDir(env);
+  const home = env.HOME || env.USERPROFILE || os.homedir();
+  if (process.platform === 'win32') {
+    const fromDpapi = readWinCliDpapiToken(path.join(roaming, 'auth.dpapi'));
+    if (fromDpapi) return fromDpapi;
+  }
+  for (const file of [
+    path.join(roaming, 'auth.json'),
+    path.join(home, '.config', 'cursor', 'auth.json'),
+    path.join(home, '.cursor', 'auth.json'),
+  ]) {
+    const data = readJson(file);
+    if (!data || typeof data !== 'object') continue;
+    if (data.storedIn === 'os-secret-store') continue; // токен не в файле
+    const token = typeof data.accessToken === 'string' ? data.accessToken.trim() : '';
+    if (looksLikeJwt(token)) return token;
+  }
+  return null;
+}
+
+/**
+ * Bearer для Dashboard API: открытый JWT IDE → JWT CLI (`agent login`) → CURSOR_API_KEY.
+ * IDE с cursor-safe-storage сам по себе недостаточен - нужен CLI-вход или ключ.
+ */
+function readAccessToken(env = process.env) {
+  return readIdeAccessToken(env) || readCliAccessToken(env) || null;
 }
 
 function saveSnapshot(rateLimits) {
@@ -169,7 +239,7 @@ function postJson(url, headers, body) {
 let refreshing = null;
 
 const { tr } = require('../ui-i18n.js');
-const NO_TOKEN_REASON = () => tr('Нет JWT Cursor: IDE шифрует токен (cursor-safe-storage). Снимок из кэша, возраст не сбросится - открой Cursor или задай CURSOR_API_KEY.');
+const NO_TOKEN_REASON = () => tr('Нет доступа к лимитам: IDE шифрует токен. Войди в Cursor CLI («Восстановить соединение» / agent login) - лимиты возьмутся оттуда. CURSOR_API_KEY нужен только для CI.');
 
 /**
  * Тянет лимиты с api2.cursor.sh. force - игнор TTL.
@@ -192,6 +262,7 @@ async function refreshDetailed(opts = {}) {
 
   refreshing = (async () => {
     const envKey = String(process.env.CURSOR_API_KEY || '').trim();
+    // CURSOR_API_KEY - запасной путь (Dashboard → API Keys), не обязателен после agent login
     const token = readAccessToken() || envKey || null;
     if (!token) {
       return { snapshot: readSnapshot(), refreshed: false, reason: NO_TOKEN_REASON() };
@@ -270,6 +341,8 @@ module.exports = {
   fromUsageResponse,
   fromSandResponse,
   looksLikeJwt,
+  readIdeAccessToken,
+  readCliAccessToken,
   readAccessToken,
   readSnapshot,
   refresh,
