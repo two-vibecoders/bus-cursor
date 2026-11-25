@@ -89,6 +89,7 @@ const USAGE = `Использование: node bus.js [--as <имя>] <кома
   orchestrator                что получит сессия проекта: промпт (хук sessionStart); модель - в пикере Cursor
   stop <имя>                  остановить субагента, работающего в фоне (завис, ушёл не туда); только оркестратор
   resume <имя>                продолжить остановленного или упавшего субагента в той же сессии claude; только оркестратор
+  wake <имя>                  поднять субагента с непрочитанным в inbox (как «Поднять» в UI: human, мимо лимита часа); оркестратор или локальный агент своего проекта (--as)
   files [prune <дней>] [--global]   вложения каталога (--global - домашней шины): сколько и мегабайт; prune - удалить старше N дней
   inbox [--quiet]             показать входящие и очистить inbox.md (в журнале они уже лежат); --quiet - только число
   history [кто] [N] [--full]  хвост переписки: до ${HISTORY_TAIL} строк и ${HISTORY_CHARS} символов (--full - без потолка символов); «кто» - только диалог с ним
@@ -102,7 +103,7 @@ const USAGE = `Использование: node bus.js [--as <имя>] <кома
 --as <имя> - действовать от имени локального или глобального агента; без флага «я» - проект по текущему каталогу.
 Тип обязателен: ${TYPES.join(', ')}; любой поднимает получателя-субагента`;
 
-const COMMANDS = 'send, broadcast, inbox, history, tokens, agents, ui, stop, resume, init, add, runtime, remove, log, files, autowake, settings, orchestrator, schedule, setup';
+const COMMANDS = 'send, broadcast, inbox, history, tokens, agents, ui, stop, resume, wake, init, add, runtime, remove, log, files, autowake, settings, orchestrator, schedule, setup';
 
 class BusError extends Error {}
 
@@ -1775,6 +1776,37 @@ function resumeAgent(asName, name) {
 }
 
 /**
+ * Ручной подъём по непрочитанному (как иконка у «ждёт подъёма» в UI): human+force - мимо рубильника и лимита часа.
+ * Оркестратор - без --as; локальный агент проекта (main и др.) - с --as, только своих однопроектных субагентов.
+ */
+function wakeAgent(asName, name) {
+  const ctx = context();
+  const me = requireSelf(ctx, asName, true);
+  const agent = describe(ctx, name || '');
+  if (!agent || !isSubagent(agent)) {
+    throw new BusError(`wake <имя>: субагента «${name || ''}» отсюда не видно. Есть: ${visibleNames(ctx).filter((n) => isSubagent(describe(ctx, n))).join(', ') || 'никого'}`);
+  }
+  if (asName) {
+    if (me.kind !== 'local' || !me.root || agent.root !== me.root) {
+      throw new BusError('wake с --as - только локальный агент своего проекта и только своего коллегу.');
+    }
+  } else if (me.kind !== 'project') {
+    throw new BusError('wake без --as - только от оркестратора каталога.');
+  }
+  requireAlive(agent);
+  if (!unread(agent)) throw new BusError(`В inbox «${agent.name}» пусто - поднимать нечего.`);
+  if (require('./wake.js').running(agent.box)) {
+    console.log(`фон: ${agent.name} уже работает - новое сообщение заберёт сам, не поднимай`);
+    return;
+  }
+  const r = require('./wake.js').request(agent, { cwd: agent.root || me.root || ctx.start, by: me.name, human: true, force: true });
+  auditNote(`${me.name} | wake ${agent.name} | ${r.state}${r.reason ? ` | ${r.reason}` : ''}`);
+  if (r.state === 'started') console.log(`фон: ${agent.name} поднят (wake) - сам его не поднимай`);
+  else if (r.state === 'busy') console.log(`фон: ${agent.name} уже работает`);
+  else console.log(`фон: ${agent.name} не поднят (${r.reason || r.state})`);
+}
+
+/**
  * Адресата нет в шине, но в каталоге отправителя лежит его определение - первое сообщение заводит его, как в UI (enrollFromPage):
  * агент просит коллегу, которого ещё никто не регистрировал. Только локальные определения своего каталога; глобальную роль
  * обёрткой заводит UI - там это решает пользователь.
@@ -2336,6 +2368,7 @@ function main(argv) {
     else if (command === 'orchestrator') orchestratorCommand(hookMode, hook, cursor);
     else if (command === 'stop') stopAgent(asName, args[0]);
     else if (command === 'resume') resumeAgent(asName, args[0]);
+    else if (command === 'wake') wakeAgent(asName, args[0]);
     else if (command === 'remove') remove(args.find((a) => a !== '--force'), args.includes('--force'));
     else if (command === 'schedule') require('./scheduler.js').cli(asName, args); // расписание - редкая команда, грузим по месту
     else if (command === 'ui') require('./ui.js').start(args).catch(fail); // сервер тяжелее остального - грузим, только когда позвали

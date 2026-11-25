@@ -251,13 +251,16 @@ function run({ cwd, agent = null, role = '', model = null, prompt: text, timeout
       const text = lastText || (typeof result.result === 'string' ? result.result.trim().slice(-2000) : '');
       const ok = !timedOut && !silent && Boolean(final) && !result.is_error;
       const raw = (stderr || (result.is_error ? text : '') || tail).trim().slice(-200);
+      const detail = stderr || raw;
       const why = timedOut
         ? `таймаут ${Math.round(timeoutMs / 1000)} с`
         : silent
           ? `Cursor молчит ${Math.round(FIRST_EVENT_MS / 1000)} с - не залогинен (agent login) или сменился формат потока`
-          : missingFromOutput(stderr || raw, code)
-            ? missingHint()
-            : `Cursor вернул ошибку (код ${code}): ${raw || 'пустой ответ'}`;
+          : /Authentication required|CURSOR_API_KEY|not logged in|unauthorized/i.test(detail)
+            ? `Cursor CLI не залогинен. В PowerShell: agent login   затем перезапусти Bus Cursor.`
+            : missingFromOutput(detail, code)
+              ? missingHint()
+              : `Cursor вернул ошибку (код ${code}): ${raw || 'пустой ответ'}`;
       finish({
         ok, ms: Date.now() - started, tokens: estimate(), context: 0, window: 0, usage: usage(), cost: 0,
         reason: ok ? '' : why, report: text, sessionId, model: billingModel,
@@ -321,6 +324,8 @@ const missingHint = () => (process.platform === 'win32'
 /** stderr cmd.exe про «не является командой» (в т.ч. кракозябры OEM) → подсказка про установку. */
 function missingFromOutput(stderr, code) {
   const text = String(stderr || '');
+  // Не путать с «Authentication required… run agent login» - там тоже слово agent
+  if (/Authentication required|CURSOR_API_KEY|agent login|not logged in|unauthorized/i.test(text)) return false;
   if (/not recognized|is not recognized|command not found|не является|ENOENT/i.test(text)) return true;
   // Windows OEM: «не является внутренней…» часто приходит кракозябрами; код 1 и мгновенный выход с «agent» в тексте
   if (process.platform === 'win32' && code === 1 && /agent/i.test(text) && text.length < 500) return true;
@@ -332,6 +337,62 @@ const shellQuote = (cmd) => (cmd === 'agent' || cmd === 'cursor-agent' ? cmd : `
 // Установщик Cursor ставит agent и cursor-agent; PATH мог не подхватиться у ярлыка - смотрим и известные папки
 const command = () => resolveCommand() || 'agent';
 const available = () => Boolean(resolveCommand());
+
+/** Причина похожа на сбой входа CLI (не «агент занят»). */
+function isAuthFailure(reason) {
+  return /не залогинен|Authentication required|agent login|CURSOR_API_KEY|не установлен или не в PATH|Not logged in/i.test(String(reason || ''));
+}
+
+/**
+ * Статус входа Cursor CLI (`agent about`).
+ * → { ok, loggedIn, email, reason, available }
+ */
+function authStatus() {
+  const cmd = resolveCommand();
+  if (!cmd) {
+    return { ok: false, loggedIn: false, email: '', available: false, reason: missingHint() };
+  }
+  const { spawnSync } = require('child_process');
+  const line = `${shellQuote(cmd)} about`;
+  const r = spawnSync(line, {
+    shell: true, encoding: 'utf8', windowsHide: true, timeout: 20000,
+    env: { ...process.env },
+  });
+  const text = `${r.stdout || ''}\n${r.stderr || ''}`;
+  const m = /User Email\s+(.+)/i.exec(text);
+  const email = m ? m[1].trim() : '';
+  const loggedIn = Boolean(email) && !/^Not logged in$/i.test(email);
+  return {
+    ok: true,
+    loggedIn,
+    email: loggedIn ? email : '',
+    available: true,
+    reason: loggedIn ? '' : `Cursor CLI не залогинен. Нажми «Восстановить соединение» или в PowerShell: agent login.`,
+  };
+}
+
+/**
+ * Открыть браузерный `agent login` в отдельном процессе.
+ * → { ok }
+ */
+function startLogin() {
+  const cmd = resolveCommand();
+  if (!cmd) throw new Error(missingHint());
+  const { spawn } = require('child_process');
+  const bin = path.isAbsolute(cmd) ? cmd : (process.platform === 'win32'
+    ? (knownBins().find((p) => fs.existsSync(p)) || cmd)
+    : cmd);
+  const child = spawn(bin, ['login'], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: false,
+    shell: process.platform === 'win32',
+    env: { ...process.env },
+  });
+  child.on('error', () => {});
+  child.unref();
+  return { ok: true };
+}
 
 // ---------- Cursor IDE как оркестратор: хуки и правило ----------
 
@@ -406,4 +467,8 @@ function ensureRule(root, exclude = null) {
   return true;
 }
 
-module.exports = { run, liveEntries, toolLine, promptFile, installed, available, command, resolveCommand, knownBins, missingHint, CURSOR_HOME, HOOKS_FILE, present, ensureHooks, ensureRule };
+module.exports = {
+  run, liveEntries, toolLine, promptFile, installed, available, command, resolveCommand, knownBins,
+  missingHint, missingFromOutput, isAuthFailure, authStatus, startLogin,
+  CURSOR_HOME, HOOKS_FILE, present, ensureHooks, ensureRule,
+};

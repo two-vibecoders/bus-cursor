@@ -1193,6 +1193,28 @@
     min-height: 36px; padding: 0 16px;
     text-transform: none; letter-spacing: 0; font: 600 13px var(--body);
   }
+
+  /* Баннер: Cursor CLI без входа - агенты не поднимаются */
+  .cursor-auth-bar {
+    display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap;
+    margin: 0; padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--line));
+    border-radius: var(--r);
+    background: color-mix(in srgb, var(--amber) 12%, var(--glass-2));
+    color: var(--ink);
+  }
+  .cursor-auth-bar[hidden] { display: none !important; }
+  .cursor-auth-bar .cursor-auth-text { flex: 1; min-width: 180px; display: grid; gap: 2px; }
+  .cursor-auth-bar b { font: 600 13px/1.35 var(--body); }
+  .cursor-auth-bar small { font: 12px/1.4 var(--body); color: var(--ink-soft); }
+  .cursor-auth-bar .send {
+    flex: none; min-height: 34px; padding: 0 14px;
+    text-transform: none; letter-spacing: 0; font: 600 13px var(--body);
+  }
+  .cursor-auth-bar .ghost {
+    flex: none; min-height: 34px; padding: 0 12px; font: 500 12px var(--body);
+  }
+  .composer-dock > .cursor-auth-bar { margin: 0 var(--gutter) 8px; width: auto; }
   form label { display: grid; gap: 4px; min-width: 0; }
   /* Подпись поля - всегда одна строка: перенос пояснения сдвигал поле вниз, и соседние в ряду переставали стоять вровень */
   form label > .label { display: flex; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; }
@@ -3747,6 +3769,14 @@
       <button type="button" role="menuitem" id="msgMenuDelete" class="danger"><svg class="icon"><use href="#i-trash"/></svg><span>Удалить</span></button>
     </div>
     <div class="composer-dock" id="composerDock">
+    <div class="cursor-auth-bar" id="cursorAuthBar" hidden role="status">
+      <div class="cursor-auth-text">
+        <b id="cursorAuthTitle">Нет соединения с Cursor CLI</b>
+        <small id="cursorAuthHint">Агенты не поднимаются, пока не войдёшь. Откроется браузерный вход.</small>
+      </div>
+      <button type="button" class="send" id="cursorAuthLogin">Восстановить соединение</button>
+      <button type="button" class="ghost" id="cursorAuthCheck">Проверить</button>
+    </div>
     <div class="live-bar" id="liveBar" hidden role="status" aria-live="polite" aria-label="Думает…"></div>
     <form id="composer">
       <button class="to-bottom" id="toBottom" type="button" hidden>Новые сообщения ↓</button>
@@ -4442,7 +4472,8 @@ function icon(name) {
   return svg;
 }
 
-const state = { agents: [], here: {}, types: [], maxFiles: 10, maxFileBytes: 30 * 1024 * 1024, messages: new Map(), summaries: new Map(), dialogs: new Map(), closed: {}, hues: new Map(), schedule: null, kanban: null, access: { servers: [], weights: null }, cursorModels: [], live: {}, liveOpen: new Set(), pins: [] };
+const state = { agents: [], here: {}, types: [], maxFiles: 10, maxFileBytes: 30 * 1024 * 1024, messages: new Map(), summaries: new Map(), dialogs: new Map(), closed: {}, hues: new Map(), schedule: null, kanban: null, access: { servers: [], weights: null }, cursorModels: [], live: {}, liveOpen: new Set(), pins: [], cursorAuth: null };
+let cursorAuthPoll = 0; // таймер опроса после «Восстановить соединение»
 let pinCursor = -1; // индекс в state.pins для кругового перехода плашкой
 let msgMenuId = ''; // сообщение под контекстным меню
 let picked = []; // загруженные, но ещё не отправленные вложения: { id, name, size }
@@ -6139,6 +6170,7 @@ function applyAgents(snapshot, feedNext = false) {
   // Сменился каталог - свой черновик; первый apply после загрузки - вернуть недописанное
   if (composeDraftScope() !== prevRoot) composeDraftReady = false;
   restoreComposeDraft();
+  renderCursorAuthBar();
 }
 
 // ---------- лимиты аккаунта и окно контекста ----------
@@ -6195,7 +6227,8 @@ async function refreshLimitsNow() {
   try {
     const data = await post('/api/rate-limits/refresh', {});
     if (data.rateLimits) renderLimits(data.rateLimits);
-    say(tr('Лимиты обновлены'));
+    if (data.refreshed) say(tr('Лимиты обновлены'));
+    else say(tr('Лимиты не обновились: {why}', { why: data.reason || tr('снимок тот же, возраст не сброшен') }), true);
   } catch (err) {
     say(tr('Лимиты не обновились: {why}', { why: err.message }), true);
   } finally {
@@ -6354,9 +6387,103 @@ async function load() {
   if (data.kanban) applyKanban(data.kanban);
   else applyKanban({ board: null, active: 0, alert: 0, done: 0, agents: [], hint: tr('Канбан - в каталоге проекта шины.') });
   renderLimits(data.rateLimits);
+  applyCursorAuth(data.cursorAuth);
   // Модели подтянулись с API после первого ответа - обновим открытую форму агента
   if ($('agentPanel') && !$('agentPanel').hidden && !agentPanel.orchestrator) fillCursorModels($('agentCursorModel').value);
 }
+
+// ---------- Cursor CLI: вход / восстановление соединения ----------
+
+function agentAuthFailure() {
+  return (state.agents || []).some((a) => a && a.wake && /не залогинен|Authentication required|agent login|CURSOR_API_KEY|не установлен или не в PATH|Not logged in/i.test(String(a.wake.reason || '')));
+}
+
+function applyCursorAuth(auth) {
+  if (auth && typeof auth === 'object') state.cursorAuth = auth;
+  renderCursorAuthBar();
+}
+
+function renderCursorAuthBar() {
+  const bar = $('cursorAuthBar');
+  if (!bar) return;
+  const auth = state.cursorAuth || {};
+  const failed = agentAuthFailure();
+  const show = Boolean(auth.needLogin) || failed || (auth.available && !auth.loggedIn);
+  bar.hidden = !show;
+  if (!show) return;
+  const hint = failed && auth.loggedIn
+    ? tr('Вошли как {email}, но агенты всё ещё падают без сессии - войди ещё раз.', { email: auth.email || 'Cursor' })
+    : (auth.reason || tr('Агенты не поднимаются, пока не войдёшь. Откроется браузерный вход.'));
+  $('cursorAuthTitle').textContent = tr('Нет соединения с Cursor CLI');
+  $('cursorAuthHint').textContent = hint;
+}
+
+async function refreshCursorAuth() {
+  try {
+    const data = await post('/api/cursor/auth', {});
+    applyCursorAuth(data);
+    if (data.loggedIn && !agentAuthFailure()) {
+      say(tr('Cursor CLI на связи{email}.', { email: data.email ? ` · ${data.email}` : '' }));
+      stopCursorAuthPoll();
+    } else if (data.loggedIn) {
+      say(tr('Вход есть, но агенты ещё падают - подожди или подними снова.'), true);
+    } else {
+      say(tr('Cursor CLI всё ещё без входа.'), true);
+    }
+    return data;
+  } catch (err) {
+    say(tr('Не удалось проверить Cursor CLI: {why}', { why: err.message }), true);
+    return null;
+  }
+}
+
+function stopCursorAuthPoll() {
+  if (cursorAuthPoll) {
+    clearInterval(cursorAuthPoll);
+    cursorAuthPoll = 0;
+  }
+}
+
+function startCursorAuthPoll() {
+  stopCursorAuthPoll();
+  let left = 60; // ~2 мин при шаге 2 с
+  cursorAuthPoll = setInterval(async () => {
+    left -= 1;
+    if (left <= 0) {
+      stopCursorAuthPoll();
+      return;
+    }
+    try {
+      const data = await post('/api/cursor/auth', {});
+      applyCursorAuth(data);
+      if (data.loggedIn && !agentAuthFailure()) {
+        say(tr('Cursor CLI на связи{email}.', { email: data.email ? ` · ${data.email}` : '' }));
+        stopCursorAuthPoll();
+      }
+    } catch {
+      // тихий опрос
+    }
+  }, 2000);
+}
+
+$('cursorAuthLogin').addEventListener('click', async () => {
+  const btn = $('cursorAuthLogin');
+  btn.disabled = true;
+  try {
+    const data = await post('/api/cursor/login', {});
+    if (data.auth) applyCursorAuth(data.auth);
+    say(data.hint || tr('Откроется вход Cursor CLI в браузере. После успеха нажми «Проверить».'));
+    startCursorAuthPoll();
+  } catch (err) {
+    say(tr('Не удалось открыть вход: {why}', { why: err.message }), true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$('cursorAuthCheck').addEventListener('click', () => {
+  refreshCursorAuth();
+});
 
 let feedLoaded = false; // в конец ленту ставит только первая загрузка: реконнект SSE и reset после удаления место чтения не трогают
 

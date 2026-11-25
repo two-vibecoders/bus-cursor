@@ -285,16 +285,36 @@ function request(agent, { cwd, by, human = false, messageId = '', force = false 
   }
 }
 
+// Сторож «ждёт подъёма»: после паузы поднять idle с непрочитанным; human обходит лимит часа, как кнопка в UI.
+// stallWakes - сколько раз уже будили без нового send; потолок - не жечь токены, если агент inbox так и не забирает.
+const STALL_GRACE_MS = Number(process.env.BUS_STALL_GRACE_MS) || 90 * 1000;
+const STALL_WAKE_MAX = Number(process.env.BUS_STALL_WAKE_MAX) || 2;
+
 /**
- * Сторож очереди: сообщения ждут в wake-pending, а раннера нет - он упал или завис, и его лок протух. Будит, как обычный send.
- * Без pending не трогаем: раннер забрал очередь, а агент inbox не прочёл - повтор только сожжёт токены.
+ * Сторож очереди и «ждёт подъёма».
+ * 1) pending + idle → обычный request (как send).
+ * 2) лимит часа ещё держит → ждём; после STALL_GRACE - human-подъём (как «Поднять» в UI), до STALL_WAKE_MAX раз.
+ * 3) unread без pending (раннер не стартовал / limit / off) → после паузы human-подъём.
+ * Без строк WAKE_LINE не трогаем. Повтор, пока агент те же строки не читал, режет stallWakes.
  */
 function rewake(agent, cwd) {
-  if (!fs.existsSync(pendingFile(agent.box)) || running(agent.box)) return null;
+  if (running(agent.box)) return null;
   const lines = wakeLines(agent.box);
   if (!lines.length) return null;
+  const saved = readJson(stateFile(agent.box), {});
+  const stallWakes = Math.max(0, Number(saved.stallWakes) || 0);
+  const idleMs = Date.now() - (Number(saved.at) || 0);
   const by = (/from:([^\s|]+)/.exec(lines[lines.length - 1]) || [])[1] || 'Bus Cursor';
-  return request(agent, { cwd, by });
+  const hasPending = fs.existsSync(pendingFile(agent.box));
+  const limited = recent(saved.times).length >= (Number(saved.perHour) || settings.get(cwd)['wake.perHour'] || WAKES_PER_HOUR);
+
+  if (hasPending && !limited) return request(agent, { cwd, by });
+
+  // Лимит или inbox без pending: не раньше паузы и не чаще STALL_WAKE_MAX
+  if (idleMs < STALL_GRACE_MS || stallWakes >= STALL_WAKE_MAX) return null;
+  const r = request(agent, { cwd, by, human: true });
+  if (r && r.state === 'started') saveState(agent.box, { stallWakes: stallWakes + 1 });
+  return r;
 }
 
 function startRunner(agent, cwd, by, human, resumeId = '') {
@@ -933,7 +953,7 @@ async function run(name, box, cwd, by, human = false, resumeId = '') {
       const runId = newRunId();
       const onContext = usageWriter(box, dialogs, runId);
       // sessionId прошлого запуска стираем сразу: упади claude до старта - resume поднял бы чужую, давно законченную сессию
-      saveState(box, { state: 'running', at: Date.now(), startedAt: Date.now(), by, reason: '', stoppedBy: '', ms: 0, tokens: 0, cost: 0, times, trigger, dialogs, runId, sessionId: continued || '', evolve: '', evolveReason: '', evolveTokens: 0 }); // ms, tokens, cost прошлого запуска к этому не относятся
+      saveState(box, { state: 'running', at: Date.now(), startedAt: Date.now(), by, reason: '', stoppedBy: '', ms: 0, tokens: 0, cost: 0, times, trigger, dialogs, runId, sessionId: continued || '', evolve: '', evolveReason: '', evolveTokens: 0, stallWakes: 0 }); // ms, tokens, cost прошлого запуска к этому не относятся; stallWakes сбрасываем - круг начался
       if (!continued) dropSession(cwd, saved.sessionId, runtimeOf(box));
       let r = await runAgent({ cwd, ...agentRun(name, box, cwd, continued), timeoutMs, prompt: continued ? resumePrompt(by) : prompt(by, read && read.text), stream: true, resume: continued, onStart: (sessionId) => saveState(box, { sessionId }), btw: () => takeBtw(box), onLive: liveWriter(box), onContext, runId });
       // Cursor: чат для --resume не нашёлся (заранее его не проверить) - поднимаем заново, непрочитанное уедет в промпт.

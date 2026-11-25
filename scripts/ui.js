@@ -34,6 +34,41 @@ const app = require('./app.js'); // окно --app и ярлык на рабоч
 const rateLimits = require('./lib/rate-limits.js'); // лимиты Cursor для шапки: кэш + Dashboard API
 const cursorModels = require('./lib/cursor-models.js'); // модели Cursor для формы агента
 
+/** Кэш статуса `agent about` - не гоняем CLI на каждый /api/state. */
+let cursorAuthCache = { at: 0, value: null };
+const CURSOR_AUTH_TTL_MS = 30 * 1000;
+
+function agentsNeedCursorLogin(snapshot) {
+  const cursor = require('./cursor.js');
+  const agents = (snapshot && snapshot.agents) || [];
+  return agents.some((a) => a && a.wake && cursor.isAuthFailure(a.wake.reason));
+}
+
+/** → { loggedIn, email, available, reason, needLogin } */
+function cursorAuthPayload(snapshot = null) {
+  const cursor = require('./cursor.js');
+  const now = Date.now();
+  if (!cursorAuthCache.value || now - cursorAuthCache.at > CURSOR_AUTH_TTL_MS) {
+    try {
+      cursorAuthCache = { at: now, value: cursor.authStatus() };
+    } catch (e) {
+      cursorAuthCache = {
+        at: now,
+        value: { ok: false, loggedIn: false, email: '', available: cursor.available(), reason: e.message || String(e) },
+      };
+    }
+  }
+  const auth = cursorAuthCache.value || { loggedIn: false, email: '', available: false, reason: '' };
+  const needLogin = !auth.loggedIn || agentsNeedCursorLogin(snapshot);
+  return {
+    loggedIn: Boolean(auth.loggedIn),
+    email: auth.email || '',
+    available: Boolean(auth.available),
+    reason: auth.reason || '',
+    needLogin,
+  };
+}
+
 /** Журнал и ящики проекта - <корень>/.cursor/bus-cursor (не путать со старым .claude/bus). */
 const projectBus = (root) => path.join(root, '.cursor', 'bus-cursor');
 
@@ -2464,7 +2499,20 @@ async function handle(req, res, port) {
       if (!models.length) models = await cursorModels.refresh().catch(() => []);
       let kanbanPayload = null;
       try { kanbanPayload = kanbanState(snapshot); } catch { /* нет доски */ }
-      return reply(res, 200, { ...snapshot, page: pageVersion(), types: bus.TYPES, access: accessPayload(snapshot.here.root), ...limitsPayload(snapshot.here.root), ...statePayload(feedScope(snapshot.here)), live: liveState(), update: updatePayload(), rateLimits: rateLimits.readSnapshot(), cursorModels: models, kanban: kanbanPayload });
+      return reply(res, 200, {
+        ...snapshot,
+        page: pageVersion(),
+        types: bus.TYPES,
+        access: accessPayload(snapshot.here.root),
+        ...limitsPayload(snapshot.here.root),
+        ...statePayload(feedScope(snapshot.here)),
+        live: liveState(),
+        update: updatePayload(),
+        rateLimits: rateLimits.readSnapshot(),
+        cursorModels: models,
+        kanban: kanbanPayload,
+        cursorAuth: cursorAuthPayload(snapshot),
+      });
     }
     return reply(res, 404, { error: tr('Нет такой страницы.') });
   }
@@ -2499,11 +2547,34 @@ async function handle(req, res, port) {
     }
     if (url.pathname === '/api/summarize') return reply(res, 200, await summarize(body));
     if (url.pathname === '/api/rate-limits/refresh') {
-      const next = await rateLimits.refresh({ force: true });
+      const result = await rateLimits.refreshDetailed({ force: true });
+      const next = result.snapshot;
       const sig = JSON.stringify(next);
       limitsSignature = sig;
       broadcast('limits', next);
-      return reply(res, 200, { rateLimits: next });
+      return reply(res, 200, {
+        rateLimits: next,
+        refreshed: Boolean(result.refreshed),
+        reason: result.reason || '',
+      });
+    }
+    if (url.pathname === '/api/cursor/auth') {
+      cursorAuthCache = { at: 0, value: null }; // принудительно перечитать
+      return reply(res, 200, cursorAuthPayload());
+    }
+    if (url.pathname === '/api/cursor/login') {
+      try {
+        require('./cursor.js').startLogin();
+      } catch (e) {
+        throw new bus.BusError(e.message || String(e));
+      }
+      cursorAuthCache = { at: 0, value: null };
+      bus.auditNote('ui cursor login');
+      return reply(res, 200, {
+        ok: true,
+        hint: tr('Откроется вход Cursor CLI в браузере. После успеха нажми «Проверить» или подожди - баннер сам скроется.'),
+        auth: cursorAuthPayload(),
+      });
     }
     if (url.pathname === '/api/update') return reply(res, 200, await installUpdate());
     if (url.pathname === '/api/update/check') return reply(res, 200, await checkUpdate());
@@ -2728,8 +2799,8 @@ async function start(args = []) {
 }
 
 /**
- * Сторож автоподъёма (wake.rewake): сообщение пришло, пока агент был занят, а его раннер так и не закончил - ответ лежал бы
- * до следующего сообщения пользователя. Только агенты проектов: каталог запуска глобального агента здесь не угадать.
+ * Сторож автоподъёма (wake.rewake): pending после busy-раннера и «ждёт подъёма» (unread + idle дольше паузы) -
+ * иначе ответ лежал бы до ручного «Поднять» или следующего сообщения. Только агенты проектов: cwd глобального здесь не угадать.
  */
 function sweepWakes() {
   try {
@@ -2743,7 +2814,7 @@ function sweepWakes() {
         const agent = bus.describe(ctx, local);
         if (!agent || !bus.isSubagent(agent) || !agent.box) continue;
         const r = wake.rewake(agent, project.root);
-        if (r && r.state === 'started') console.log(`сторож: поднял ${agent.name} (${project.root}) - сообщения ждали в очереди`);
+        if (r && r.state === 'started') console.log(`сторож: поднял ${agent.name} (${project.root}) - inbox / очередь ждали подъёма`);
       }
     }
   } catch (e) {

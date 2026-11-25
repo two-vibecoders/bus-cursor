@@ -38,7 +38,15 @@ function stateDbPath(env = process.env) {
   return path.join(env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Cursor', 'User', 'globalStorage', 'state.vscdb');
 }
 
-/** JWT из локальной БД Cursor. Нет БД / нет токена / нет node:sqlite - null. */
+/** Похоже на JWT (три base64-сегмента). cursor-safe-storage:… - шифротекст IDE, как Bearer его слать нельзя. */
+function looksLikeJwt(token) {
+  if (!token || typeof token !== 'string') return false;
+  if (token.startsWith('cursor-safe-storage:')) return false;
+  const parts = token.split('.');
+  return parts.length === 3 && parts.every((p) => p.length > 0);
+}
+
+/** JWT из локальной БД Cursor. Нет БД / нет токена / шифротекст / нет node:sqlite - null. */
 function readAccessToken(env = process.env) {
   const file = stateDbPath(env);
   if (!fs.existsSync(file)) return null;
@@ -48,7 +56,7 @@ function readAccessToken(env = process.env) {
     try {
       const row = db.prepare('SELECT value FROM ItemTable WHERE key = ?').get('cursorAuth/accessToken');
       const token = row && typeof row.value === 'string' ? row.value.trim() : '';
-      return token || null;
+      return looksLikeJwt(token) ? token : null;
     } finally {
       db.close();
     }
@@ -160,11 +168,14 @@ function postJson(url, headers, body) {
 
 let refreshing = null;
 
+const { tr } = require('../ui-i18n.js');
+const NO_TOKEN_REASON = () => tr('Нет JWT Cursor: IDE шифрует токен (cursor-safe-storage). Снимок из кэша, возраст не сбросится - открой Cursor или задай CURSOR_API_KEY.');
+
 /**
- * Тянет лимиты с api2.cursor.sh и пишет снимок. force - игнор TTL.
- * → снимок readSnapshot() или null.
+ * Тянет лимиты с api2.cursor.sh. force - игнор TTL.
+ * → { snapshot, refreshed, reason } - refreshed false, если кэш не переписали.
  */
-async function refresh(opts = {}) {
+async function refreshDetailed(opts = {}) {
   const force = Boolean(opts.force);
   const now = Date.now();
   const prev = readJson(SNAPSHOT);
@@ -174,12 +185,17 @@ async function refresh(opts = {}) {
   } catch {
     at = 0;
   }
-  if (!force && prev && now - at < REFRESH_MS) return readSnapshot();
+  if (!force && prev && now - at < REFRESH_MS) {
+    return { snapshot: readSnapshot(), refreshed: true, reason: '' }; // в TTL - снимок свежий, повторный запрос не нужен
+  }
   if (refreshing) return refreshing;
 
   refreshing = (async () => {
-    const token = readAccessToken();
-    if (!token) return readSnapshot();
+    const envKey = String(process.env.CURSOR_API_KEY || '').trim();
+    const token = readAccessToken() || envKey || null;
+    if (!token) {
+      return { snapshot: readSnapshot(), refreshed: false, reason: NO_TOKEN_REASON() };
+    }
     const headers = {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -190,16 +206,30 @@ async function refresh(opts = {}) {
       postJson(SAND_URL, headers, '{}'),
     ]);
     const snap = {};
+    const errors = [];
     if (usage.status === 'fulfilled') {
       const period = fromUsageResponse(usage.value);
       if (period) Object.assign(snap, period);
+      else errors.push('GetCurrentPeriodUsage пустой');
+    } else {
+      errors.push(String(usage.reason && usage.reason.message || usage.reason || 'usage fail'));
     }
     if (sand.status === 'fulfilled') {
       const grok = fromSandResponse(sand.value);
       snap.grok = grok; // null → убрать из кэша, если Grok Bot недоступен
+    } else {
+      errors.push(String(sand.reason && sand.reason.message || sand.reason || 'sand fail'));
     }
-    if (Object.keys(snap).length) saveSnapshot(snap);
-    return readSnapshot();
+    // Свежий снимок - только если пришли окна периода (total/auto/api). Один grok/null возраст «Всего» не сбрасывает.
+    if (snap.total || snap.auto || snap.api) {
+      saveSnapshot(snap);
+      return { snapshot: readSnapshot(), refreshed: true, reason: '' };
+    }
+    return {
+      snapshot: readSnapshot(),
+      refreshed: false,
+      reason: errors.length ? `API Cursor не отдал лимиты: ${errors.join('; ')}` : 'API Cursor не отдал лимиты.',
+    };
   })();
 
   try {
@@ -207,6 +237,12 @@ async function refresh(opts = {}) {
   } finally {
     refreshing = null;
   }
+}
+
+/** Тянет лимиты. → снимок readSnapshot() или null (как раньше для tick/SSE). */
+async function refresh(opts = {}) {
+  const r = await refreshDetailed(opts);
+  return r.snapshot;
 }
 
 /** → { total?, auto?, api?, grok?, at } или null. */
@@ -228,11 +264,14 @@ module.exports = {
   SNAPSHOT,
   WINDOWS,
   REFRESH_MS,
+  NO_TOKEN_REASON,
   saveSnapshot,
   fromStreamEvent,
   fromUsageResponse,
   fromSandResponse,
+  looksLikeJwt,
   readAccessToken,
   readSnapshot,
   refresh,
+  refreshDetailed,
 };
